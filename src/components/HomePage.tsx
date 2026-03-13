@@ -531,7 +531,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      <div className="max-w-3xl mx-auto px-4 mt-6">
+      <div className="max-w-3xl mx-auto px-4 mt-6 overflow-hidden">
         {view === "detail" && selectedRecipe ? (
           <div className="flex justify-center">
             <RecipeCard
@@ -698,7 +698,7 @@ export default function HomePage() {
                 {filteredRecipes.map((r) => (
                   <div
                     key={r.db_id || r.video_id}
-                    className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 flex gap-4 items-center"
+                    className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 flex gap-4 items-center overflow-hidden"
                   >
                     <button
                       onClick={() => {
