@@ -6,8 +6,8 @@ let client: SupabaseClient | null = null;
 export function createClient(): SupabaseClient {
   if (client) return client;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\s/g, "");
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.replace(/\s/g, "");
 
   if (!url || !key) {
     throw new Error(
