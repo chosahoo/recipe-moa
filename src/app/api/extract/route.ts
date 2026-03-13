@@ -28,22 +28,49 @@ async function getVideoInfo(videoId: string) {
 
 async function getTranscript(videoId: string): Promise<string> {
   // 한국어 → 영어 → 언어 미지정(자동 생성 자막) 순으로 시도
-  const attempts = [
-    { lang: "ko" },
-    { lang: "en" },
-    {},
-  ];
+  const attempts = [{ lang: "ko" }, { lang: "en" }, {}];
 
   for (const config of attempts) {
     try {
-      const transcript = await YoutubeTranscript.fetchTranscript(videoId, config);
+      const transcript = await YoutubeTranscript.fetchTranscript(
+        videoId,
+        config
+      );
       return transcript.map((t) => t.text).join(" ");
     } catch {
       continue;
     }
   }
 
-  throw new Error("자막을 가져올 수 없습니다. 자막이 없는 영상일 수 있어요.");
+  return ""; // 자막 없으면 빈 문자열 반환
+}
+
+async function getTranscriptFromWhisper(videoId: string): Promise<string> {
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+
+  const res = await fetch(
+    "https://speech-to-text-ai.p.rapidapi.com/transcribe/url",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-RapidAPI-Key": process.env.RAPIDAPI_KEY || "",
+        "X-RapidAPI-Host": "speech-to-text-ai.p.rapidapi.com",
+      },
+      body: JSON.stringify({
+        url,
+        language: "ko",
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`음성 인식 실패: ${errText.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  return data.text || data.transcript || "";
 }
 
 async function summarizeRecipe(transcript: string, title: string) {
@@ -121,7 +148,24 @@ export async function POST(req: NextRequest) {
     }
 
     const videoInfo = await getVideoInfo(videoId);
-    const transcript = await getTranscript(videoId);
+
+    // 1. 자막 시도
+    let transcript = await getTranscript(videoId);
+    let method = "subtitle";
+
+    // 2. 자막 없으면 → AI 음성 인식
+    if (!transcript) {
+      transcript = await getTranscriptFromWhisper(videoId);
+      method = "whisper";
+    }
+
+    if (!transcript) {
+      return NextResponse.json(
+        { detail: "자막과 음성 모두 추출할 수 없는 영상입니다." },
+        { status: 400 }
+      );
+    }
+
     const recipe = await summarizeRecipe(transcript, videoInfo.title);
 
     return NextResponse.json({
@@ -129,6 +173,7 @@ export async function POST(req: NextRequest) {
       title: videoInfo.title,
       thumbnail: videoInfo.thumbnail,
       recipe,
+      method, // 프론트에서 어떤 방식으로 추출했는지 표시용
     });
   } catch (err) {
     const message =
