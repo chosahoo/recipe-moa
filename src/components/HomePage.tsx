@@ -376,8 +376,14 @@ export default function HomePage() {
           ) : !guestRecipe ? (
             /* 이미 1회 체험했고, 결과가 없는 상태 (새로고침 후) */
             <div className="text-center py-8">
+              <p className="text-lg font-semibold text-gray-700 mb-2">
+                무료 체험이 끝났어요!
+              </p>
+              <p className="text-gray-500 mb-1">
+                비로그인 상태에서는 1회만 추출할 수 있어요.
+              </p>
               <p className="text-gray-500 mb-6">
-                레시피를 저장하고 다시 보려면 로그인하세요
+                로그인하면 매일 레시피를 추출하고, 저장 및 인분 계산도 가능해요!
               </p>
               <AuthButton user={null} onAuthChange={refreshAuth} />
             </div>
