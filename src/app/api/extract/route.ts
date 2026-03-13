@@ -76,7 +76,7 @@ async function getPinnedComment(videoId: string): Promise<string> {
     for (const item of data.items || []) {
       const comment = item.snippet?.topLevelComment?.snippet?.textDisplay || "";
       // 재료, 레시피, 만드는 법 등 키워드가 있으면 레시피 댓글로 판단
-      if (comment.length > 50 && /재료|레시피|만드는|순서|방법|tbsp|tsp|컵|큰술|작은술|g\b|ml\b/i.test(comment)) {
+      if (comment.length > 30 && /재료|레시피|만드는|순서|방법|tbsp|tsp|컵|큰술|작은술|\d+g\b|\d+ml\b|\d+개|\d+스푼|고추장|간장|식용유/i.test(comment)) {
         // HTML 태그 제거
         return comment.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ");
       }
@@ -172,11 +172,10 @@ export async function POST(req: NextRequest) {
       getPinnedComment(videoId),
     ]);
 
-    console.log("DEBUG:", { videoId, hasKey: !!YOUTUBE_API_KEY, keyLen: YOUTUBE_API_KEY.length, transcript: transcript.length, description: description.length, comment: comment.length });
 
-    // 레시피 품질 검증: 재료 3개 이상 + 조리 단계 2개 이상
+    // 레시피 품질 검증: 재료 2개 이상 + 조리 단계 1개 이상
     const isValidRecipe = (r: { ingredients?: string[]; steps?: string[] }) =>
-      r.ingredients && r.ingredients.length >= 3 && r.steps && r.steps.length >= 2;
+      r.ingredients && r.ingredients.length >= 2 && r.steps && r.steps.length >= 1;
 
     // 1. 자막 우선
     if (transcript) {
@@ -232,7 +231,6 @@ export async function POST(req: NextRequest) {
       title: videoInfo.title,
       thumbnail: videoInfo.thumbnail,
       method: "no_recipe",
-      _debug: { hasKey: !!YOUTUBE_API_KEY, keyLen: YOUTUBE_API_KEY.length, transcriptLen: transcript.length, descLen: description.length, commentLen: comment.length },
     });
   } catch (err) {
     const message =
