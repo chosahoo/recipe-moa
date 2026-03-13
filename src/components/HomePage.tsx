@@ -68,19 +68,18 @@ export default function HomePage() {
     const hash = window.location.hash;
     if (hash && hash.includes("access_token")) {
       const params = new URLSearchParams(hash.substring(1));
-      const accessToken = params.get("access_token");
-      const refreshToken = params.get("refresh_token");
-      alert(`토큰 감지: access=${accessToken ? "있음" : "없음"}, refresh=${refreshToken ? "있음" : "없음"}`);
+      const accessToken = params.get("access_token")?.replace(/\s/g, "");
+      const refreshToken = params.get("refresh_token")?.replace(/\s/g, "");
       if (accessToken && refreshToken) {
         supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
-        }).then(({ data, error }) => {
+        }).then(({ error }) => {
           if (error) {
-            alert(`setSession 실패: ${error.message}`);
-          } else {
-            alert(`setSession 성공: ${data.user?.email}`);
+            alert(`로그인 실패: ${error.message}`);
           }
+          // 성공 시 onAuthStateChange가 처리
+          window.history.replaceState(null, "", window.location.pathname);
         });
       }
     }
