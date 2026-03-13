@@ -235,6 +235,8 @@ export default function HomePage() {
         setUrl("");
         setLoading(false);
         setLoadingMsg("");
+        // 2초 후 리스트로 이동 (에러 메시지 확인 시간)
+        setTimeout(() => { setView("home"); setError(""); }, 2000);
         return;
       }
 
