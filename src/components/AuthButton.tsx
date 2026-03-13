@@ -11,18 +11,6 @@ interface Props {
 export default function AuthButton({ user, onAuthChange }: Props) {
   const supabase = createClient();
 
-  const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (error) {
-      alert(`로그인 에러: ${error.message}`);
-    }
-  };
-
   const signOut = async () => {
     await supabase.auth.signOut();
     onAuthChange();
@@ -44,12 +32,16 @@ export default function AuthButton({ user, onAuthChange }: Props) {
     );
   }
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const redirectTo = typeof window !== "undefined" ? window.location.origin : "https://www.xn--om2b21rhzo.site";
+  const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
+
   return (
-    <button
-      onClick={signInWithGoogle}
-      className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+    <a
+      href={authUrl}
+      className="inline-block bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer text-center"
     >
       Google 로그인
-    </button>
+    </a>
   );
 }
