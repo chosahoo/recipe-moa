@@ -46,21 +46,18 @@ async function getTranscript(videoId: string): Promise<string> {
 }
 
 async function getTranscriptFromWhisper(videoId: string): Promise<string> {
-  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const videoUrl = encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`);
 
   const res = await fetch(
-    "https://speech-to-text-ai.p.rapidapi.com/transcribe/url",
+    `https://speech-to-text-ai.p.rapidapi.com/transcribe?url=${videoUrl}&lang=ko&task=transcribe`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-RapidAPI-Key": process.env.RAPIDAPI_KEY || "",
-        "X-RapidAPI-Host": "speech-to-text-ai.p.rapidapi.com",
+        "x-rapidapi-key": process.env.RAPIDAPI_KEY || "",
+        "x-rapidapi-host": "speech-to-text-ai.p.rapidapi.com",
       },
-      body: JSON.stringify({
-        url,
-        language: "ko",
-      }),
+      body: JSON.stringify({}),
     }
   );
 
