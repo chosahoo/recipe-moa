@@ -12,25 +12,14 @@ export default function AuthButton({ user, onAuthChange }: Props) {
   const supabase = createClient();
 
   const signInWithGoogle = async () => {
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: "https://xn--om2b21rhzo.site",
-          skipBrowserRedirect: true,
-        },
-      });
-      if (error) {
-        alert(`로그인 에러: ${error.message}`);
-        return;
-      }
-      if (data?.url) {
-        window.location.assign(data.url);
-      } else {
-        alert("로그인 URL 생성 실패");
-      }
-    } catch (e) {
-      alert(`오류: ${e instanceof Error ? e.message : String(e)}`);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    if (error) {
+      alert(`로그인 에러: ${error.message}`);
     }
   };
 
