@@ -194,7 +194,7 @@ export default function HomePage() {
             </p>
             <div className="grid grid-cols-3 gap-3 max-w-md mx-auto text-center mb-2">
               <div className="bg-white rounded-xl p-3 shadow-sm">
-                <p className="text-2xl mb-1">&#129379;</p>
+                <p className="text-2xl mb-1">&#127834;</p>
                 <p className="text-xs text-gray-600 font-medium">자동 레시피 추출</p>
               </div>
               <div className="bg-white rounded-xl p-3 shadow-sm">
