@@ -569,7 +569,7 @@ export default function HomePage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="mb-8">
+            {!limitReached && <form onSubmit={handleSubmit} className="mb-8">
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
@@ -596,7 +596,7 @@ export default function HomePage() {
                   )}
                 </button>
               </div>
-            </form>
+            </form>}
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 text-sm">
