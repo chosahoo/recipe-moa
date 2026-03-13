@@ -89,17 +89,20 @@ export default function HomePage() {
 
       if (session?.user) {
         // 첫 로드 또는 로그인 시에만 데이터 로드 (TOKEN_REFRESHED에서는 스킵)
-        if (!authInitialized.current || event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+        if (!authInitialized.current || event === "SIGNED_IN") {
           authInitialized.current = true;
-          await loadRecipes();
           try {
-            const p = await getOrCreateProfile(session.user.id);
+            const [, p, count] = await Promise.all([
+              loadRecipes(),
+              getOrCreateProfile(session.user.id),
+              getTodayExtractionCount(session.user.id),
+            ]);
             setProfile(p);
-            const count = await getTodayExtractionCount(session.user.id);
             setTodayCount(count);
             setLimitReached(count >= p.daily_limit);
           } catch {
-            // 프로필 로드 실패 시 기본값 유지
+            // 프로필 로드 실패해도 레시피는 이미 로드됨
+            loadRecipes();
           }
         }
         // 리퍼럴 코드 적용 (신규 가입 시)
