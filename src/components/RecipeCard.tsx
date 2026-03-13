@@ -12,11 +12,27 @@ interface Props {
   onBack?: () => void;
 }
 
+// "돼지고기 목살 500g" → 숫자 부분만 비율 계산
+function adjustIngredient(ingredient: string, ratio: number): string {
+  if (ratio === 1) return ingredient;
+  return ingredient.replace(/(\d+\.?\d*)/g, (match) => {
+    const num = parseFloat(match);
+    const adjusted = num * ratio;
+    // 정수로 떨어지면 정수, 아니면 소수 첫째자리까지
+    return adjusted % 1 === 0
+      ? adjusted.toString()
+      : adjusted.toFixed(1).replace(/\.0$/, "");
+  });
+}
+
 export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack }: Props) {
   const [checkedSteps, setCheckedSteps] = useState<boolean[]>(
     recipe.checked_steps
   );
   const [favorite, setFavorite] = useState(recipe.is_favorite);
+  const baseServings = recipe.recipe.servings || 1;
+  const [servings, setServings] = useState(baseServings);
+  const ratio = servings / baseServings;
 
   const toggleStep = (index: number) => {
     const next = [...checkedSteps];
@@ -36,7 +52,7 @@ export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack 
   };
 
   const handleShare = () => {
-    const text = `${recipe.recipe.food_name} 레시피\n\n재료: ${recipe.recipe.ingredients.join(", ")}\n\n조리 순서:\n${recipe.recipe.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}${recipe.recipe.tips ? `\n\n팁: ${recipe.recipe.tips}` : ""}`;
+    const text = `${recipe.recipe.food_name} 레시피 (${servings}인분)\n\n재료: ${recipe.recipe.ingredients.map((ing) => adjustIngredient(ing, ratio)).join(", ")}\n\n조리 순서:\n${recipe.recipe.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}${recipe.recipe.tips ? `\n\n팁: ${recipe.recipe.tips}` : ""}`;
     const url = `https://www.youtube.com/watch?v=${recipe.video_id}`;
 
     if (navigator.share) {
@@ -89,15 +105,40 @@ export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack 
         </h2>
         <p className="text-sm text-gray-500 mb-4 truncate">{recipe.title}</p>
 
+        {/* 인분 조절 */}
         <div className="mb-5">
-          <h3 className="text-lg font-semibold text-orange-600 mb-2">재료</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-orange-600">재료</h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setServings(Math.max(1, servings - 1))}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
+              >
+                -
+              </button>
+              <span className="text-sm font-semibold text-gray-800 min-w-[4rem] text-center">
+                {servings}인분
+              </span>
+              <button
+                onClick={() => setServings(servings + 1)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
+              >
+                +
+              </button>
+            </div>
+          </div>
+          {servings !== baseServings && (
+            <p className="text-xs text-gray-400 mb-2">
+              기준: {baseServings}인분
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {recipe.recipe.ingredients.map((ing, i) => (
               <span
                 key={i}
                 className="bg-orange-50 text-orange-800 px-3 py-1 rounded-full text-sm"
               >
-                {ing}
+                {adjustIngredient(ing, ratio)}
               </span>
             ))}
           </div>

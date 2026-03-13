@@ -1,6 +1,7 @@
 export interface Recipe {
   food_name: string;
   category: string;
+  servings: number;
   ingredients: string[];
   steps: string[];
   tips: string;

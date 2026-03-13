@@ -54,6 +54,7 @@ async function summarizeRecipe(transcript: string, title: string) {
 {
   "food_name": "김치찌개",
   "category": "국/찌개",
+  "servings": 2,
   "ingredients": ["돼지고기 목살 500g", "김치 1포기", "두부 1모"],
   "steps": ["돼지고기를 한입 크기로 썬다.", "냄비에 기름을 두르고 고기를 볶는다.", "김치를 넣고 함께 볶는다.", "물을 넣고 끓인다.", "두부를 넣고 5분 더 끓인다."],
   "tips": "김치는 잘 익은 묵은지를 쓰면 더 맛있다."
@@ -62,6 +63,7 @@ async function summarizeRecipe(transcript: string, title: string) {
 중요 규칙:
 - food_name: 문자열. 음식 이름 (한국어)
 - category: 문자열. 반드시 다음 중 하나만 선택: "밥/면", "국/찌개", "반찬", "볶음/구이", "디저트/간식", "양식", "중식", "일식", "기타"
+- servings: 숫자. 이 레시피의 기준 인분 수 (영상에서 언급된 인분, 없으면 재료 양으로 추정)
 - ingredients: 문자열 배열. 재료와 분량 (예: "돼지고기 목살 500g")
 - steps: 문자열 배열. 각 조리 단계를 하나씩 배열 원소로. 절대 하나의 문자열로 합치지 마세요.
 - tips: 문자열. 요리 꿀팁 (없으면 빈 문자열 "")

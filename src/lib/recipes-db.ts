@@ -20,6 +20,7 @@ export async function getSavedRecipes(): Promise<SavedRecipe[]> {
     recipe: {
       food_name: row.food_name,
       category: row.category ?? "기타",
+      servings: row.servings ?? 1,
       ingredients: row.ingredients,
       steps: row.steps,
       tips: row.tips,
@@ -42,6 +43,7 @@ export async function saveRecipe(
     thumbnail: recipe.thumbnail,
     food_name: recipe.recipe.food_name,
     category: recipe.recipe.category ?? "기타",
+    servings: recipe.recipe.servings ?? 1,
     ingredients: recipe.recipe.ingredients,
     steps: recipe.recipe.steps,
     tips: recipe.recipe.tips,
@@ -64,6 +66,7 @@ export async function saveRecipe(
     recipe: {
       food_name: data.food_name,
       category: data.category ?? "기타",
+      servings: data.servings ?? 1,
       ingredients: data.ingredients,
       steps: data.steps,
       tips: data.tips,
