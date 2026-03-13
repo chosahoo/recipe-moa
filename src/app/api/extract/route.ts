@@ -189,35 +189,19 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. 설명란 시도
-    if (description && description.length > 50) {
+    // 2. 설명란 + 댓글 합쳐서 시도
+    const combined = [description, comment].filter(Boolean).join("\n\n");
+    if (combined.length > 30) {
       try {
-        const recipe = await summarizeRecipe(description, videoInfo.title, "description");
+        const source = comment ? "comment" : "description";
+        const recipe = await summarizeRecipe(combined, videoInfo.title, source);
         if (recipe.food_name && isValidRecipe(recipe)) {
           return NextResponse.json({
             video_id: videoId,
             title: videoInfo.title,
             thumbnail: videoInfo.thumbnail,
             recipe,
-            method: "description",
-          });
-        }
-      } catch {
-        // 파싱 실패 시 다음 단계로
-      }
-    }
-
-    // 3. 핀 댓글 시도
-    if (comment) {
-      try {
-        const recipe = await summarizeRecipe(comment, videoInfo.title, "comment");
-        if (recipe.food_name && isValidRecipe(recipe)) {
-          return NextResponse.json({
-            video_id: videoId,
-            title: videoInfo.title,
-            thumbnail: videoInfo.thumbnail,
-            recipe,
-            method: "comment",
+            method: source,
           });
         }
       } catch {
