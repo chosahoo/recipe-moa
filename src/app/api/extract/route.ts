@@ -70,21 +70,24 @@ async function getPinnedComment(videoId: string): Promise<string> {
 
   try {
     const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&order=relevance&maxResults=5&key=${YOUTUBE_API_KEY}`
+      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&order=relevance&maxResults=20&key=${YOUTUBE_API_KEY}`
     );
     if (!res.ok) return "";
     const data = await res.json();
 
-    // 핀 댓글 또는 상위 댓글 중 레시피 관련 내용 찾기
+    // 레시피 키워드가 있는 댓글 모두 수집, 가장 긴 것 사용
+    const recipePattern = /재료|레시피|만드는|순서|방법|tbsp|tsp|컵|큰술|작은술|\d+g\b|\d+ml\b|\d+개|\d+스푼|고추장|간장|식용유/i;
+    let bestComment = "";
     for (const item of data.items || []) {
       const comment = item.snippet?.topLevelComment?.snippet?.textDisplay || "";
-      // 재료, 레시피, 만드는 법 등 키워드가 있으면 레시피 댓글로 판단
-      if (comment.length > 30 && /재료|레시피|만드는|순서|방법|tbsp|tsp|컵|큰술|작은술|\d+g\b|\d+ml\b|\d+개|\d+스푼|고추장|간장|식용유/i.test(comment)) {
-        // HTML 태그 제거
-        return comment.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ");
+      if (comment.length > 30 && recipePattern.test(comment)) {
+        const clean = comment.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ");
+        if (clean.length > bestComment.length) {
+          bestComment = clean;
+        }
       }
     }
-    return "";
+    return bestComment;
   } catch {
     return "";
   }
