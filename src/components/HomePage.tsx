@@ -58,7 +58,22 @@ export default function HomePage() {
   }, [supabase.auth, loadRecipes]);
 
   useEffect(() => {
-    checkUser();
+    // URL에 auth 토큰이 있으면 hash 제거
+    if (window.location.hash && window.location.hash.includes("access_token")) {
+      // supabase client가 hash에서 토큰을 자동 감지
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          setUser(session.user);
+          setAuthLoading(false);
+          loadRecipes();
+          // URL 정리
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+      });
+    } else {
+      checkUser();
+    }
+
     // 게스트 체험 여부 확인
     if (localStorage.getItem(GUEST_TRIED_KEY)) {
       setGuestTried(true);
@@ -223,7 +238,7 @@ export default function HomePage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white px-8 py-3 rounded-xl font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white px-8 py-3 rounded-xl font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <span className="flex items-center gap-2 justify-center">
