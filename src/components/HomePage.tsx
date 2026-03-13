@@ -80,22 +80,29 @@ export default function HomePage() {
       }
     }
 
+    let initialized = false;
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
+      const prevUser = initialized ? undefined : null;
       setUser(session?.user ?? null);
       setAuthLoading(false);
+
       if (session?.user) {
-        loadRecipes();
-        // 프로필 생성/조회 & 추출 횟수 확인
-        try {
-          const p = await getOrCreateProfile(session.user.id);
-          setProfile(p);
-          const count = await getTodayExtractionCount(session.user.id);
-          setTodayCount(count);
-          setLimitReached(count >= p.daily_limit);
-        } catch {
-          // 프로필 로드 실패 시 기본값 유지
+        // 첫 로드 또는 로그인 시에만 데이터 로드 (TOKEN_REFRESHED에서는 스킵)
+        if (!initialized || event === "SIGNED_IN") {
+          initialized = true;
+          loadRecipes();
+          try {
+            const p = await getOrCreateProfile(session.user.id);
+            setProfile(p);
+            const count = await getTodayExtractionCount(session.user.id);
+            setTodayCount(count);
+            setLimitReached(count >= p.daily_limit);
+          } catch {
+            // 프로필 로드 실패 시 기본값 유지
+          }
         }
         // 리퍼럴 코드 적용 (신규 가입 시)
         if (event === "SIGNED_IN") {
@@ -104,7 +111,6 @@ export default function HomePage() {
           if (refCode) {
             try {
               await applyReferral(refCode, session.user.id);
-              // ref 파라미터 제거
               params.delete("ref");
               const newSearch = params.toString();
               window.history.replaceState(null, "", window.location.pathname + (newSearch ? `?${newSearch}` : ""));
@@ -117,7 +123,7 @@ export default function HomePage() {
         if (window.location.hash && window.location.hash.includes("access_token")) {
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }
-      } else {
+      } else if (event === "SIGNED_OUT") {
         setSavedRecipes([]);
         setProfile(null);
         setTodayCount(0);
