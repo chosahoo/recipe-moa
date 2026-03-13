@@ -287,7 +287,11 @@ export default function HomePage() {
     setView("home");
     setSelectedRecipe(null);
     setError("");
-    setLimitReached(false);
+    if (profile) {
+      setLimitReached(todayCount >= profile.daily_limit);
+    } else {
+      setLimitReached(false);
+    }
   };
 
   const copyReferralLink = () => {
@@ -513,7 +517,7 @@ export default function HomePage() {
                   {referralCopied ? "복사됨!" : "친구 초대"}
                 </button>
                 <button
-                  onClick={() => setView("extract")}
+                  onClick={() => { setView("extract"); if (profile) setLimitReached(todayCount >= profile.daily_limit); }}
                   className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
                 >
                   + 새 레시피
@@ -680,7 +684,7 @@ export default function HomePage() {
                 </p>
                 {tab === "all" && (
                   <button
-                    onClick={() => setView("extract")}
+                    onClick={() => { setView("extract"); if (profile) setLimitReached(todayCount >= profile.daily_limit); }}
                     className="mt-4 text-orange-500 hover:text-orange-600 font-medium cursor-pointer"
                   >
                     + 첫 레시피 추출하기
