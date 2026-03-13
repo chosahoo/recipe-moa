@@ -18,6 +18,9 @@ export function createClient(): SupabaseClient {
   client = createSupabaseClient(url, key, {
     auth: {
       flowType: "implicit",
+      detectSessionInUrl: true,
+      autoRefreshToken: true,
+      persistSession: true,
     },
   });
   return client;

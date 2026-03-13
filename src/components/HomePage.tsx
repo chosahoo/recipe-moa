@@ -58,31 +58,14 @@ export default function HomePage() {
   }, [supabase.auth, loadRecipes]);
 
   useEffect(() => {
-    // URL hash에 access_token이 있으면 직접 세션 설정
-    const hash = window.location.hash;
-    if (hash && hash.includes("access_token")) {
-      const params = new URLSearchParams(hash.substring(1));
-      const access_token = params.get("access_token");
-      const refresh_token = params.get("refresh_token");
-      if (access_token && refresh_token) {
-        supabase.auth.setSession({ access_token, refresh_token }).then(({ data: { session }, error }) => {
-          if (session) {
-            setUser(session.user);
-            loadRecipes();
-            window.history.replaceState(null, "", window.location.pathname);
-          }
-          if (error) {
-            alert(`세션 설정 에러: ${error.message}`);
-          }
-          setAuthLoading(false);
-        }).catch(() => {
-          setAuthLoading(false);
-        });
-      } else {
-        checkUser();
-      }
-    } else {
-      checkUser();
+    checkUser();
+
+    // URL hash에 access_token이 있으면 정리
+    if (window.location.hash && window.location.hash.includes("access_token")) {
+      // Supabase 클라이언트가 자동 감지할 시간을 줌
+      setTimeout(() => {
+        window.history.replaceState(null, "", window.location.pathname);
+      }, 2000);
     }
 
     // 게스트 체험 여부 확인
