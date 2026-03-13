@@ -172,6 +172,8 @@ export async function POST(req: NextRequest) {
       getPinnedComment(videoId),
     ]);
 
+    console.log("DEBUG:", { videoId, hasKey: !!YOUTUBE_API_KEY, keyLen: YOUTUBE_API_KEY.length, transcript: transcript.length, description: description.length, comment: comment.length });
+
     // 레시피 품질 검증: 재료 3개 이상 + 조리 단계 2개 이상
     const isValidRecipe = (r: { ingredients?: string[]; steps?: string[] }) =>
       r.ingredients && r.ingredients.length >= 3 && r.steps && r.steps.length >= 2;
@@ -230,6 +232,7 @@ export async function POST(req: NextRequest) {
       title: videoInfo.title,
       thumbnail: videoInfo.thumbnail,
       method: "no_recipe",
+      _debug: { hasKey: !!YOUTUBE_API_KEY, keyLen: YOUTUBE_API_KEY.length, transcriptLen: transcript.length, descLen: description.length, commentLen: comment.length },
     });
   } catch (err) {
     const message =
