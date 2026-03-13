@@ -177,34 +177,45 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 레시피 품질 검증: 재료 3개 이상 + 조리 단계 2개 이상
+    const isValidRecipe = (r: { ingredients?: string[]; steps?: string[] }) =>
+      r.ingredients && r.ingredients.length >= 3 && r.steps && r.steps.length >= 2;
+
     // 2. 설명란 시도
     const description = await getDescription(videoId);
-    if (description && description.length > 30) {
-      const recipe = await summarizeRecipe(description, videoInfo.title, "description");
-      // AI가 레시피를 못 찾은 경우 (빈 food_name)
-      if (recipe.food_name && recipe.ingredients?.length > 0) {
-        return NextResponse.json({
-          video_id: videoId,
-          title: videoInfo.title,
-          thumbnail: videoInfo.thumbnail,
-          recipe,
-          method: "description",
-        });
+    if (description && description.length > 50) {
+      try {
+        const recipe = await summarizeRecipe(description, videoInfo.title, "description");
+        if (recipe.food_name && isValidRecipe(recipe)) {
+          return NextResponse.json({
+            video_id: videoId,
+            title: videoInfo.title,
+            thumbnail: videoInfo.thumbnail,
+            recipe,
+            method: "description",
+          });
+        }
+      } catch {
+        // 파싱 실패 시 다음 단계로
       }
     }
 
     // 3. 핀 댓글 시도
     const comment = await getPinnedComment(videoId);
     if (comment) {
-      const recipe = await summarizeRecipe(comment, videoInfo.title, "comment");
-      if (recipe.food_name && recipe.ingredients?.length > 0) {
-        return NextResponse.json({
-          video_id: videoId,
-          title: videoInfo.title,
-          thumbnail: videoInfo.thumbnail,
-          recipe,
-          method: "comment",
-        });
+      try {
+        const recipe = await summarizeRecipe(comment, videoInfo.title, "comment");
+        if (recipe.food_name && isValidRecipe(recipe)) {
+          return NextResponse.json({
+            video_id: videoId,
+            title: videoInfo.title,
+            thumbnail: videoInfo.thumbnail,
+            recipe,
+            method: "comment",
+          });
+        }
+      } catch {
+        // 파싱 실패 시 다음 단계로
       }
     }
 
