@@ -50,44 +50,48 @@ async function getTranscript(videoId: string): Promise<string> {
   return "";
 }
 
-async function getDescription(videoId: string): Promise<string> {
-  if (!YOUTUBE_API_KEY) return "";
+async function getDescriptionAndChannel(videoId: string): Promise<{ description: string; channelId: string }> {
+  if (!YOUTUBE_API_KEY) return { description: "", channelId: "" };
 
   try {
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
     );
-    if (!res.ok) return "";
+    if (!res.ok) return { description: "", channelId: "" };
     const data = await res.json();
-    return data.items?.[0]?.snippet?.description || "";
+    const snippet = data.items?.[0]?.snippet;
+    return {
+      description: snippet?.description || "",
+      channelId: snippet?.channelId || "",
+    };
   } catch {
-    return "";
+    return { description: "", channelId: "" };
   }
 }
 
-async function getPinnedComment(videoId: string): Promise<string> {
+async function getPinnedComment(videoId: string, channelId: string): Promise<string> {
   if (!YOUTUBE_API_KEY) return "";
 
   try {
     const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&order=relevance&maxResults=20&key=${YOUTUBE_API_KEY}`
+      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&order=relevance&maxResults=5&key=${YOUTUBE_API_KEY}`
     );
     if (!res.ok) return "";
     const data = await res.json();
 
-    // 레시피 키워드가 있는 댓글 모두 수집, 가장 긴 것 사용
-    const recipePattern = /재료|레시피|만드는|순서|방법|tbsp|tsp|컵|큰술|작은술|\d+g\b|\d+ml\b|\d+개|\d+스푼|고추장|간장|식용유/i;
-    let bestComment = "";
+    // 채널 주인(업로더)의 댓글만 확인 (고정핀 댓글)
     for (const item of data.items || []) {
-      const comment = item.snippet?.topLevelComment?.snippet?.textDisplay || "";
-      if (comment.length > 30 && recipePattern.test(comment)) {
-        const clean = comment.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ");
-        if (clean.length > bestComment.length) {
-          bestComment = clean;
-        }
+      const snippet = item.snippet?.topLevelComment?.snippet;
+      if (!snippet) continue;
+      const authorChannelId = snippet.authorChannelId?.value || "";
+      // 업로더 댓글만 사용
+      if (channelId && authorChannelId !== channelId) continue;
+      const comment = snippet.textDisplay || "";
+      if (comment.length > 30) {
+        return comment.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ");
       }
     }
-    return bestComment;
+    return "";
   } catch {
     return "";
   }
@@ -170,12 +174,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 영상 정보, 설명란, 댓글을 먼저 가져옴 (빠름)
-    const [videoInfo, description, comment] = await Promise.all([
+    // 영상 정보 + 설명란/채널ID를 먼저 가져옴 (빠름)
+    const [videoInfo, { description, channelId }] = await Promise.all([
       getVideoInfo(videoId),
-      getDescription(videoId),
-      getPinnedComment(videoId),
+      getDescriptionAndChannel(videoId),
     ]);
+    // 채널 주인의 고정핀 댓글 확인
+    const comment = await getPinnedComment(videoId, channelId);
 
     // 레시피 품질 검증: 재료 2개 이상 + 조리 단계 1개 이상
     const isValidRecipe = (r: { ingredients?: string[]; steps?: string[] }) =>
