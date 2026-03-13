@@ -64,9 +64,20 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    // onAuthStateChange가 모든 세션 변화를 처리
-    // INITIAL_SESSION: 첫 로드 시 기존 세션 감지
-    // SIGNED_IN: OAuth hash에서 세션 감지
+    // OAuth hash에서 수동으로 세션 설정 (detectSessionInUrl 폴백)
+    const hash = window.location.hash;
+    if (hash && hash.includes("access_token")) {
+      const params = new URLSearchParams(hash.substring(1));
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+      if (accessToken && refreshToken) {
+        supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+      }
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
