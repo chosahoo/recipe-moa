@@ -24,6 +24,8 @@ export default function HomePage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState("");
+  const [whisperInProgress, setWhisperInProgress] = useState(false);
   const [error, setError] = useState("");
   const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<SavedRecipe | null>(null);
@@ -87,14 +89,16 @@ export default function HomePage() {
     if (!url.trim()) return;
 
     setLoading(true);
+    setLoadingMsg("AI가 레시피를 추출중이에요...");
     setError("");
     setGuestRecipe(null);
 
     try {
+      // 1단계: 자막 확인
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, mode: "check" }),
       });
 
       if (!res.ok) {
@@ -102,15 +106,43 @@ export default function HomePage() {
         throw new Error(data.detail || "레시피 추출에 실패했습니다.");
       }
 
-      const data: RecipeResponse = await res.json();
+      let data = await res.json();
+
+      // 2단계: 자막 없으면 whisper
+      if (data.method === "need_whisper") {
+        if (whisperInProgress) {
+          alert("AI 음성 분석은 한 번에 하나만 가능해요!");
+          setLoading(false);
+          return;
+        }
+        setWhisperInProgress(true);
+        setLoadingMsg("자막이 없어 AI가 음성을 분석하여 레시피를 작성중이에요...");
+
+        const res2 = await fetch("/api/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, mode: "whisper" }),
+        });
+
+        setWhisperInProgress(false);
+
+        if (!res2.ok) {
+          const errData = await res2.json();
+          throw new Error(errData.detail || "음성 인식에 실패했습니다.");
+        }
+        data = await res2.json();
+      }
+
       setGuestRecipe(data);
       setGuestTried(true);
       localStorage.setItem(GUEST_TRIED_KEY, "true");
       setUrl("");
     } catch (err) {
+      setWhisperInProgress(false);
       setError(err instanceof Error ? err.message : "알 수 없는 오류");
     } finally {
       setLoading(false);
+      setLoadingMsg("");
     }
   };
 
@@ -120,13 +152,15 @@ export default function HomePage() {
     if (!url.trim() || !user) return;
 
     setLoading(true);
+    setLoadingMsg("AI가 레시피를 추출중이에요...");
     setError("");
 
     try {
+      // 1단계: 자막 확인
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, mode: "check" }),
       });
 
       if (!res.ok) {
@@ -134,16 +168,44 @@ export default function HomePage() {
         throw new Error(data.detail || "레시피 추출에 실패했습니다.");
       }
 
-      const data: RecipeResponse = await res.json();
+      let data = await res.json();
+
+      // 2단계: 자막 없으면 whisper
+      if (data.method === "need_whisper") {
+        if (whisperInProgress) {
+          alert("AI 음성 분석은 한 번에 하나만 가능해요!");
+          setLoading(false);
+          return;
+        }
+        setWhisperInProgress(true);
+        setLoadingMsg("자막이 없어 AI가 음성을 분석하여 레시피를 작성중이에요...");
+
+        const res2 = await fetch("/api/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, mode: "whisper" }),
+        });
+
+        setWhisperInProgress(false);
+
+        if (!res2.ok) {
+          const errData = await res2.json();
+          throw new Error(errData.detail || "음성 인식에 실패했습니다.");
+        }
+        data = await res2.json();
+      }
+
       const saved = await saveRecipe(data, user.id);
       await loadRecipes();
       setSelectedRecipe(saved);
       setView("detail");
       setUrl("");
     } catch (err) {
+      setWhisperInProgress(false);
       setError(err instanceof Error ? err.message : "알 수 없는 오류");
     } finally {
       setLoading(false);
+      setLoadingMsg("");
     }
   };
 
@@ -249,14 +311,20 @@ export default function HomePage() {
               )}
 
               {loading && (
-                <div className="bg-white rounded-2xl shadow-md overflow-hidden max-w-2xl w-full mx-auto animate-pulse">
-                  <div className="bg-gray-200 h-48 sm:h-56" />
-                  <div className="p-6 space-y-4">
-                    <div className="h-6 bg-gray-200 rounded w-1/3" />
-                    <div className="h-4 bg-gray-200 rounded w-2/3" />
-                    <div className="space-y-2">
-                      <div className="h-4 bg-gray-200 rounded" />
-                      <div className="h-4 bg-gray-200 rounded w-5/6" />
+                <div className="max-w-2xl w-full mx-auto">
+                  <div className="text-center mb-4">
+                    <div className="animate-spin h-8 w-8 border-4 border-orange-400 border-t-transparent rounded-full mx-auto mb-3" />
+                    <p className="text-sm text-gray-600">{loadingMsg}</p>
+                  </div>
+                  <div className="bg-white rounded-2xl shadow-md overflow-hidden animate-pulse">
+                    <div className="bg-gray-200 h-48 sm:h-56" />
+                    <div className="p-6 space-y-4">
+                      <div className="h-6 bg-gray-200 rounded w-1/3" />
+                      <div className="h-4 bg-gray-200 rounded w-2/3" />
+                      <div className="space-y-2">
+                        <div className="h-4 bg-gray-200 rounded" />
+                        <div className="h-4 bg-gray-200 rounded w-5/6" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -422,14 +490,20 @@ export default function HomePage() {
             )}
 
             {loading && (
-              <div className="bg-white rounded-2xl shadow-md overflow-hidden max-w-2xl w-full mx-auto animate-pulse">
-                <div className="bg-gray-200 h-48 sm:h-56" />
-                <div className="p-6 space-y-4">
-                  <div className="h-6 bg-gray-200 rounded w-1/3" />
-                  <div className="h-4 bg-gray-200 rounded w-2/3" />
-                  <div className="space-y-2">
-                    <div className="h-4 bg-gray-200 rounded" />
-                    <div className="h-4 bg-gray-200 rounded w-5/6" />
+              <div className="max-w-2xl w-full mx-auto">
+                <div className="text-center mb-4">
+                  <div className="animate-spin h-8 w-8 border-4 border-orange-400 border-t-transparent rounded-full mx-auto mb-3" />
+                  <p className="text-sm text-gray-600">{loadingMsg}</p>
+                </div>
+                <div className="bg-white rounded-2xl shadow-md overflow-hidden animate-pulse">
+                  <div className="bg-gray-200 h-48 sm:h-56" />
+                  <div className="p-6 space-y-4">
+                    <div className="h-6 bg-gray-200 rounded w-1/3" />
+                    <div className="h-4 bg-gray-200 rounded w-2/3" />
+                    <div className="space-y-2">
+                      <div className="h-4 bg-gray-200 rounded" />
+                      <div className="h-4 bg-gray-200 rounded w-5/6" />
+                    </div>
                   </div>
                 </div>
               </div>

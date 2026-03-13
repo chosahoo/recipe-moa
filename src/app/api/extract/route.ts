@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { YoutubeTranscript } from "youtube-transcript";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY?.trim() });
 
 function extractVideoId(url: string): string | null {
   const match = url.match(
@@ -27,7 +27,6 @@ async function getVideoInfo(videoId: string) {
 }
 
 async function getTranscript(videoId: string): Promise<string> {
-  // 한국어 → 영어 → 언어 미지정(자동 생성 자막) 순으로 시도
   const attempts = [{ lang: "ko" }, { lang: "en" }, {}];
 
   for (const config of attempts) {
@@ -42,11 +41,13 @@ async function getTranscript(videoId: string): Promise<string> {
     }
   }
 
-  return ""; // 자막 없으면 빈 문자열 반환
+  return "";
 }
 
 async function getTranscriptFromWhisper(videoId: string): Promise<string> {
-  const videoUrl = encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`);
+  const videoUrl = encodeURIComponent(
+    `https://www.youtube.com/watch?v=${videoId}`
+  );
 
   const res = await fetch(
     `https://speech-to-text-ai.p.rapidapi.com/transcribe?url=${videoUrl}&lang=ko&task=transcribe`,
@@ -54,7 +55,7 @@ async function getTranscriptFromWhisper(videoId: string): Promise<string> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-rapidapi-key": process.env.RAPIDAPI_KEY || "",
+        "x-rapidapi-key": process.env.RAPIDAPI_KEY?.trim() || "",
         "x-rapidapi-host": "speech-to-text-ai.p.rapidapi.com",
       },
       body: JSON.stringify({}),
@@ -110,7 +111,6 @@ ${transcript.slice(0, 8000)}`;
 
   const data = JSON.parse(jsonMatch[0]);
 
-  // steps나 ingredients가 문자열로 온 경우 보정
   if (typeof data.steps === "string") {
     data.steps = data.steps
       .split(/\d+\.\s*/)
@@ -128,7 +128,7 @@ ${transcript.slice(0, 8000)}`;
 
 export async function POST(req: NextRequest) {
   try {
-    const { url } = await req.json();
+    const { url, mode } = await req.json();
     if (!url) {
       return NextResponse.json(
         { detail: "URL이 필요합니다." },
@@ -146,11 +146,51 @@ export async function POST(req: NextRequest) {
 
     const videoInfo = await getVideoInfo(videoId);
 
-    // 1. 자막 시도
+    // mode=check: 자막만 확인하고 결과 반환
+    if (mode === "check") {
+      const transcript = await getTranscript(videoId);
+      if (transcript) {
+        const recipe = await summarizeRecipe(transcript, videoInfo.title);
+        return NextResponse.json({
+          video_id: videoId,
+          title: videoInfo.title,
+          thumbnail: videoInfo.thumbnail,
+          recipe,
+          method: "subtitle",
+        });
+      }
+      // 자막 없음 → 프론트에 알림
+      return NextResponse.json({
+        video_id: videoId,
+        title: videoInfo.title,
+        thumbnail: videoInfo.thumbnail,
+        method: "need_whisper",
+      });
+    }
+
+    // mode=whisper: 음성 인식으로 추출
+    if (mode === "whisper") {
+      const transcript = await getTranscriptFromWhisper(videoId);
+      if (!transcript) {
+        return NextResponse.json(
+          { detail: "음성을 인식할 수 없는 영상입니다." },
+          { status: 400 }
+        );
+      }
+      const recipe = await summarizeRecipe(transcript, videoInfo.title);
+      return NextResponse.json({
+        video_id: videoId,
+        title: videoInfo.title,
+        thumbnail: videoInfo.thumbnail,
+        recipe,
+        method: "whisper",
+      });
+    }
+
+    // 기본: 자막 → whisper 순차 시도
     let transcript = await getTranscript(videoId);
     let method = "subtitle";
 
-    // 2. 자막 없으면 → AI 음성 인식
     if (!transcript) {
       transcript = await getTranscriptFromWhisper(videoId);
       method = "whisper";
@@ -170,7 +210,7 @@ export async function POST(req: NextRequest) {
       title: videoInfo.title,
       thumbnail: videoInfo.thumbnail,
       recipe,
-      method, // 프론트에서 어떤 방식으로 추출했는지 표시용
+      method,
     });
   } catch (err) {
     const message =
