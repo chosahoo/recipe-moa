@@ -3,7 +3,7 @@ import { YoutubeTranscript } from "youtube-transcript";
 import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY?.replace(/\s/g, "") });
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY?.trim() || "";
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY?.replace(/\s/g, "") || "";
 
 function extractVideoId(url: string): string | null {
   const match = url.match(
