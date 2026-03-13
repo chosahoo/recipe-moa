@@ -14,7 +14,7 @@ export default function AuthButton({ user, onAuthChange }: Props) {
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
   };
 
