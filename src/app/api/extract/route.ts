@@ -28,22 +28,25 @@ async function getVideoInfo(videoId: string) {
 }
 
 async function getTranscript(videoId: string): Promise<string> {
-  const attempts = [{ lang: "ko" }, { lang: "en" }, {}];
-
-  // 모든 언어를 동시에 시도, 하나라도 성공하면 사용
-  const results = await Promise.allSettled(
-    attempts.map((config) =>
-      YoutubeTranscript.fetchTranscript(videoId, config)
-    )
-  );
-
-  // ko > en > auto 순서로 성공한 것 사용
-  for (const result of results) {
-    if (result.status === "fulfilled" && result.value.length > 0) {
-      return result.value.map((t) => t.text).join(" ");
+  // 5초 타임아웃으로 자막 시도 (ko만 시도 — 요리 영상은 대부분 한국어)
+  try {
+    const result = await Promise.race([
+      YoutubeTranscript.fetchTranscript(videoId, { lang: "ko" }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+    ]);
+    if (result.length > 0) return result.map((t) => t.text).join(" ");
+  } catch {
+    // ko 실패 시 auto 한번 더 시도
+    try {
+      const result = await Promise.race([
+        YoutubeTranscript.fetchTranscript(videoId),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+      ]);
+      if (result.length > 0) return result.map((t) => t.text).join(" ");
+    } catch {
+      // 자막 없음
     }
   }
-
   return "";
 }
 
@@ -164,32 +167,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 영상 정보, 자막, 설명란, 댓글을 동시에 가져옴
-    const [videoInfo, transcript, description, comment] = await Promise.all([
+    // 영상 정보, 설명란, 댓글을 먼저 가져옴 (빠름)
+    const [videoInfo, description, comment] = await Promise.all([
       getVideoInfo(videoId),
-      getTranscript(videoId),
       getDescription(videoId),
       getPinnedComment(videoId),
     ]);
-
 
     // 레시피 품질 검증: 재료 2개 이상 + 조리 단계 1개 이상
     const isValidRecipe = (r: { ingredients?: string[]; steps?: string[] }) =>
       r.ingredients && r.ingredients.length >= 2 && r.steps && r.steps.length >= 1;
 
-    // 1. 자막 우선
-    if (transcript) {
-      const recipe = await summarizeRecipe(transcript, videoInfo.title, "subtitle");
-      return NextResponse.json({
-        video_id: videoId,
-        title: videoInfo.title,
-        thumbnail: videoInfo.thumbnail,
-        recipe,
-        method: "subtitle",
-      });
-    }
-
-    // 2. 설명란 + 댓글 합쳐서 시도
+    // 1. 설명란 + 댓글 먼저 시도 (빠름)
     const combined = [description, comment].filter(Boolean).join("\n\n");
     if (combined.length > 30) {
       try {
@@ -207,6 +196,19 @@ export async function POST(req: NextRequest) {
       } catch {
         // 파싱 실패 시 다음 단계로
       }
+    }
+
+    // 2. 자막 시도 (느릴 수 있음)
+    const transcript = await getTranscript(videoId);
+    if (transcript) {
+      const recipe = await summarizeRecipe(transcript, videoInfo.title, "subtitle");
+      return NextResponse.json({
+        video_id: videoId,
+        title: videoInfo.title,
+        thumbnail: videoInfo.thumbnail,
+        recipe,
+        method: "subtitle",
+      });
     }
 
     // 4. 모두 실패
