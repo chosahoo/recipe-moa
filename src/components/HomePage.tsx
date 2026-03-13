@@ -65,14 +65,21 @@ export default function HomePage() {
       const access_token = params.get("access_token");
       const refresh_token = params.get("refresh_token");
       if (access_token && refresh_token) {
-        supabase.auth.setSession({ access_token, refresh_token }).then(({ data: { session } }) => {
+        supabase.auth.setSession({ access_token, refresh_token }).then(({ data: { session }, error }) => {
           if (session) {
             setUser(session.user);
-            setAuthLoading(false);
             loadRecipes();
             window.history.replaceState(null, "", window.location.pathname);
           }
+          if (error) {
+            console.error("setSession error:", error);
+          }
+          setAuthLoading(false);
+        }).catch(() => {
+          setAuthLoading(false);
         });
+      } else {
+        checkUser();
       }
     } else {
       checkUser();
