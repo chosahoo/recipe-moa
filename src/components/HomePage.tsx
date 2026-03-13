@@ -89,7 +89,7 @@ export default function HomePage() {
 
       if (session?.user) {
         // 첫 로드 또는 로그인 시에만 데이터 로드 (TOKEN_REFRESHED에서는 스킵)
-        if (!authInitialized.current || event === "SIGNED_IN") {
+        if (!authInitialized.current || event === "SIGNED_IN" || event === "INITIAL_SESSION") {
           authInitialized.current = true;
           await loadRecipes();
           try {

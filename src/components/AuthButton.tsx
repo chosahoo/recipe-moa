@@ -23,8 +23,8 @@ export default function AuthButton({ user, onAuthChange }: Props) {
           {user.user_metadata?.name || user.email}
         </span>
         <button
-          onClick={signOut}
-          className="text-sm text-gray-500 hover:text-red-500 transition-colors cursor-pointer"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); signOut(); }}
+          className="text-sm text-gray-500 hover:text-red-500 transition-colors cursor-pointer px-2 py-1 -my-1"
         >
           로그아웃
         </button>
