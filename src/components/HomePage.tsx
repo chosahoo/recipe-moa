@@ -376,7 +376,7 @@ export default function HomePage() {
                   이 레시피를 저장하고 싶으신가요?
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
-                  로그인하면 레시피 저장, 즐겨찾기, 공유 기능을 모두 사용할 수 있어요
+                  로그인하면 레시피 저장은 물론, 1인분·2인분 원하는 인분만큼 재료를 자동 계산해드려요!
                 </p>
                 <AuthButton user={null} onAuthChange={refreshAuth} />
               </div>
