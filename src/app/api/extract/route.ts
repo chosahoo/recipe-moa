@@ -3,6 +3,7 @@ import { YoutubeTranscript } from "youtube-transcript";
 import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY?.replace(/\s/g, "") });
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY?.trim() || "";
 
 function extractVideoId(url: string): string | null {
   const match = url.match(
@@ -44,9 +45,51 @@ async function getTranscript(videoId: string): Promise<string> {
   return "";
 }
 
-async function summarizeRecipe(transcript: string, title: string) {
+async function getDescription(videoId: string): Promise<string> {
+  if (!YOUTUBE_API_KEY) return "";
+
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
+    );
+    if (!res.ok) return "";
+    const data = await res.json();
+    return data.items?.[0]?.snippet?.description || "";
+  } catch {
+    return "";
+  }
+}
+
+async function getPinnedComment(videoId: string): Promise<string> {
+  if (!YOUTUBE_API_KEY) return "";
+
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&order=relevance&maxResults=5&key=${YOUTUBE_API_KEY}`
+    );
+    if (!res.ok) return "";
+    const data = await res.json();
+
+    // 핀 댓글 또는 상위 댓글 중 레시피 관련 내용 찾기
+    for (const item of data.items || []) {
+      const comment = item.snippet?.topLevelComment?.snippet?.textDisplay || "";
+      // 재료, 레시피, 만드는 법 등 키워드가 있으면 레시피 댓글로 판단
+      if (comment.length > 50 && /재료|레시피|만드는|순서|방법|tbsp|tsp|컵|큰술|작은술|g\b|ml\b/i.test(comment)) {
+        // HTML 태그 제거
+        return comment.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ");
+      }
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+async function summarizeRecipe(text: string, title: string, source: string) {
+  const sourceLabel = source === "subtitle" ? "자막" : source === "description" ? "설명란" : "댓글";
+
   const prompt = `당신은 요리 레시피 정리 전문가입니다.
-아래는 "${title}"이라는 유튜브 요리 영상의 자막 텍스트입니다.
+아래는 "${title}"이라는 유튜브 요리 영상의 ${sourceLabel} 텍스트입니다.
 이 텍스트를 분석해서 정확히 아래 JSON 형식으로 변환해주세요.
 
 반드시 아래 예시와 동일한 구조로 출력하세요:
@@ -67,10 +110,12 @@ async function summarizeRecipe(transcript: string, title: string) {
 - steps: 문자열 배열. 각 조리 단계를 하나씩 배열 원소로. 절대 하나의 문자열로 합치지 마세요.
 - tips: 문자열. 요리 꿀팁 (없으면 빈 문자열 "")
 
+만약 텍스트에 요리 레시피 정보가 없다면, 빈 JSON을 반환하세요: {"food_name":"","ingredients":[],"steps":[],"tips":"","category":"기타","servings":1}
+
 JSON만 출력하세요. 다른 텍스트 없이 JSON만 출력하세요.
 
-자막 텍스트:
-${transcript.slice(0, 8000)}`;
+텍스트:
+${text.slice(0, 8000)}`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -78,8 +123,8 @@ ${transcript.slice(0, 8000)}`;
     messages: [{ role: "user", content: prompt }],
   });
 
-  const text = response.choices[0].message.content?.trim() || "";
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  const responseText = response.choices[0].message.content?.trim() || "";
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("AI 응답을 파싱할 수 없습니다.");
 
   const data = JSON.parse(jsonMatch[0]);
@@ -118,26 +163,57 @@ export async function POST(req: NextRequest) {
     }
 
     const videoInfo = await getVideoInfo(videoId);
-    const transcript = await getTranscript(videoId);
 
-    // 자막 없으면 영상 정보만 반환
-    if (!transcript) {
+    // 1. 자막 시도
+    const transcript = await getTranscript(videoId);
+    if (transcript) {
+      const recipe = await summarizeRecipe(transcript, videoInfo.title, "subtitle");
       return NextResponse.json({
         video_id: videoId,
         title: videoInfo.title,
         thumbnail: videoInfo.thumbnail,
-        method: "no_subtitle",
+        recipe,
+        method: "subtitle",
       });
     }
 
-    const recipe = await summarizeRecipe(transcript, videoInfo.title);
+    // 2. 설명란 시도
+    const description = await getDescription(videoId);
+    if (description && description.length > 30) {
+      const recipe = await summarizeRecipe(description, videoInfo.title, "description");
+      // AI가 레시피를 못 찾은 경우 (빈 food_name)
+      if (recipe.food_name && recipe.ingredients?.length > 0) {
+        return NextResponse.json({
+          video_id: videoId,
+          title: videoInfo.title,
+          thumbnail: videoInfo.thumbnail,
+          recipe,
+          method: "description",
+        });
+      }
+    }
 
+    // 3. 핀 댓글 시도
+    const comment = await getPinnedComment(videoId);
+    if (comment) {
+      const recipe = await summarizeRecipe(comment, videoInfo.title, "comment");
+      if (recipe.food_name && recipe.ingredients?.length > 0) {
+        return NextResponse.json({
+          video_id: videoId,
+          title: videoInfo.title,
+          thumbnail: videoInfo.thumbnail,
+          recipe,
+          method: "comment",
+        });
+      }
+    }
+
+    // 4. 모두 실패
     return NextResponse.json({
       video_id: videoId,
       title: videoInfo.title,
       thumbnail: videoInfo.thumbnail,
-      recipe,
-      method: "subtitle",
+      method: "no_recipe",
     });
   } catch (err) {
     const message =
