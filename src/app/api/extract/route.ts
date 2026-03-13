@@ -27,22 +27,23 @@ async function getVideoInfo(videoId: string) {
 }
 
 async function getTranscript(videoId: string): Promise<string> {
-  try {
-    const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
-      lang: "ko",
-    });
-    return transcript.map((t) => t.text).join(" ");
-  } catch {
-    // 한국어 자막 없으면 영어로
+  // 한국어 → 영어 → 언어 미지정(자동 생성 자막) 순으로 시도
+  const attempts = [
+    { lang: "ko" },
+    { lang: "en" },
+    {},
+  ];
+
+  for (const config of attempts) {
     try {
-      const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
-        lang: "en",
-      });
+      const transcript = await YoutubeTranscript.fetchTranscript(videoId, config);
       return transcript.map((t) => t.text).join(" ");
     } catch {
-      throw new Error("자막을 가져올 수 없습니다.");
+      continue;
     }
   }
+
+  throw new Error("자막을 가져올 수 없습니다. 자막이 없는 영상일 수 있어요.");
 }
 
 async function summarizeRecipe(transcript: string, title: string) {
