@@ -70,10 +70,17 @@ export default function HomePage() {
       const params = new URLSearchParams(hash.substring(1));
       const accessToken = params.get("access_token");
       const refreshToken = params.get("refresh_token");
+      alert(`토큰 감지: access=${accessToken ? "있음" : "없음"}, refresh=${refreshToken ? "있음" : "없음"}`);
       if (accessToken && refreshToken) {
         supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
+        }).then(({ data, error }) => {
+          if (error) {
+            alert(`setSession 실패: ${error.message}`);
+          } else {
+            alert(`setSession 성공: ${data.user?.email}`);
+          }
         });
       }
     }
