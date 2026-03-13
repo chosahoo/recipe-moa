@@ -50,37 +50,47 @@ async function getTranscript(videoId: string): Promise<string> {
   return "";
 }
 
-async function getDescriptionAndChannel(videoId: string): Promise<{ description: string; channelId: string }> {
-  if (!YOUTUBE_API_KEY) return { description: "", channelId: "" };
+async function getDescriptionAndChannel(videoId: string): Promise<{ description: string; channelId: string; error?: string }> {
+  if (!YOUTUBE_API_KEY) return { description: "", channelId: "", error: "YOUTUBE_API_KEY not set" };
 
   try {
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
     );
-    if (!res.ok) return { description: "", channelId: "" };
+    if (!res.ok) {
+      const text = await res.text();
+      return { description: "", channelId: "", error: `videos API ${res.status}: ${text.slice(0, 200)}` };
+    }
     const data = await res.json();
     const snippet = data.items?.[0]?.snippet;
     return {
       description: snippet?.description || "",
       channelId: snippet?.channelId || "",
     };
-  } catch {
-    return { description: "", channelId: "" };
+  } catch (e) {
+    return { description: "", channelId: "", error: `videos API error: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
 
-async function getPinnedComment(videoId: string, channelId: string): Promise<string> {
-  if (!YOUTUBE_API_KEY) return "";
+async function getPinnedComment(videoId: string, channelId: string): Promise<{ comment: string; error?: string }> {
+  if (!YOUTUBE_API_KEY) return { comment: "", error: "YOUTUBE_API_KEY not set" };
 
   try {
     const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&order=relevance&maxResults=5&key=${YOUTUBE_API_KEY}`
+      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&order=relevance&maxResults=20&key=${YOUTUBE_API_KEY}`
     );
-    if (!res.ok) return "";
+    if (!res.ok) {
+      const text = await res.text();
+      return { comment: "", error: `comments API ${res.status}: ${text.slice(0, 200)}` };
+    }
     const data = await res.json();
 
+    if (!data.items || data.items.length === 0) {
+      return { comment: "", error: "no comments found" };
+    }
+
     // 채널 주인(업로더)의 댓글만 확인 (고정핀 댓글)
-    for (const item of data.items || []) {
+    for (const item of data.items) {
       const snippet = item.snippet?.topLevelComment?.snippet;
       if (!snippet) continue;
       const authorChannelId = snippet.authorChannelId?.value || "";
@@ -88,12 +98,12 @@ async function getPinnedComment(videoId: string, channelId: string): Promise<str
       if (channelId && authorChannelId !== channelId) continue;
       const comment = snippet.textDisplay || "";
       if (comment.length > 30) {
-        return comment.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ");
+        return { comment: comment.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ") };
       }
     }
-    return "";
-  } catch {
-    return "";
+    return { comment: "", error: `checked ${data.items.length} comments, no channel owner comment found (channelId: ${channelId})` };
+  } catch (e) {
+    return { comment: "", error: `comments API error: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
 
@@ -174,13 +184,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const debug: string[] = [];
+
     // 영상 정보 + 설명란/채널ID를 먼저 가져옴 (빠름)
-    const [videoInfo, { description, channelId }] = await Promise.all([
+    const [videoInfo, descResult] = await Promise.all([
       getVideoInfo(videoId),
       getDescriptionAndChannel(videoId),
     ]);
+    const { description, channelId } = descResult;
+    if (descResult.error) debug.push(`desc: ${descResult.error}`);
+    else debug.push(`desc: ${description.length}자, channelId: ${channelId}`);
+
     // 채널 주인의 고정핀 댓글 확인
-    const comment = await getPinnedComment(videoId, channelId);
+    const commentResult = await getPinnedComment(videoId, channelId);
+    const comment = commentResult.comment;
+    if (commentResult.error) debug.push(`comment: ${commentResult.error}`);
+    else debug.push(`comment: ${comment.length}자`);
 
     // 레시피 품질 검증: 재료 2개 이상 + 조리 단계 1개 이상
     const isValidRecipe = (r: { ingredients?: string[]; steps?: string[] }) =>
@@ -188,10 +207,12 @@ export async function POST(req: NextRequest) {
 
     // 1. 설명란 + 댓글 먼저 시도 (빠름)
     const combined = [description, comment].filter(Boolean).join("\n\n");
+    debug.push(`combined: ${combined.length}자`);
     if (combined.length > 30) {
       try {
         const source = comment ? "comment" : "description";
         const recipe = await summarizeRecipe(combined, videoInfo.title, source);
+        debug.push(`recipe from ${source}: food=${recipe.food_name}, ing=${recipe.ingredients?.length}, steps=${recipe.steps?.length}`);
         if (recipe.food_name && isValidRecipe(recipe)) {
           return NextResponse.json({
             video_id: videoId,
@@ -199,15 +220,18 @@ export async function POST(req: NextRequest) {
             thumbnail: videoInfo.thumbnail,
             recipe,
             method: source,
+            debug,
           });
         }
-      } catch {
-        // 파싱 실패 시 다음 단계로
+        debug.push("recipe validation failed, trying transcript");
+      } catch (e) {
+        debug.push(`summarize error: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 
     // 2. 자막 시도 (느릴 수 있음)
     const transcript = await getTranscript(videoId);
+    debug.push(`transcript: ${transcript.length}자`);
     if (transcript) {
       const recipe = await summarizeRecipe(transcript, videoInfo.title, "subtitle");
       return NextResponse.json({
@@ -216,15 +240,18 @@ export async function POST(req: NextRequest) {
         thumbnail: videoInfo.thumbnail,
         recipe,
         method: "subtitle",
+        debug,
       });
     }
 
-    // 4. 모두 실패
+    // 3. 모두 실패
+    debug.push("all methods failed");
     return NextResponse.json({
       video_id: videoId,
       title: videoInfo.title,
       thumbnail: videoInfo.thumbnail,
       method: "no_recipe",
+      debug,
     });
   } catch (err) {
     const message =

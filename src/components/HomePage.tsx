@@ -227,7 +227,8 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.method === "no_recipe") {
-        setError("이 영상은 자막·설명·댓글에 레시피 정보가 없어 AI 분석이 불가해요. 영상 정보만 기록해놓을게요!");
+        const debugInfo = data.debug ? `\n[디버그: ${data.debug.join(" | ")}]` : "";
+        setError(`이 영상은 자막·설명·댓글에 레시피 정보가 없어 AI 분석이 불가해요. 영상 정보만 기록해놓을게요!${debugInfo}`);
         // 자막 없는 영상은 기본 정보만 저장
         const basicRecipe = {
           video_id: data.video_id,
