@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase";
 import RecipeCard from "@/components/RecipeCard";
 import AuthButton from "@/components/AuthButton";
 import Image from "next/image";
-import { User } from "@supabase/supabase-js";
+import { User, AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 type View = "home" | "extract" | "detail";
 type Tab = "all" | "favorites";
@@ -69,7 +69,7 @@ export default function HomePage() {
     // SIGNED_IN: OAuth hash에서 세션 감지
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
       if (session?.user) {

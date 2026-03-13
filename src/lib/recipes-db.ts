@@ -13,7 +13,7 @@ export async function getSavedRecipes(): Promise<SavedRecipe[]> {
 
   if (error) throw error;
 
-  return (data || []).map((row) => ({
+  return (data || []).map((row: Record<string, unknown>) => ({
     video_id: row.video_id,
     title: row.title,
     thumbnail: row.thumbnail,
