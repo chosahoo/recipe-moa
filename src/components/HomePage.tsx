@@ -287,6 +287,8 @@ export default function HomePage() {
     setView("home");
     setSelectedRecipe(null);
     setError("");
+    setLoading(false);
+    setLoadingMsg("");
     if (profile) {
       setLimitReached(todayCount >= profile.daily_limit);
     } else {
