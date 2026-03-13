@@ -30,15 +30,17 @@ async function getVideoInfo(videoId: string) {
 async function getTranscript(videoId: string): Promise<string> {
   const attempts = [{ lang: "ko" }, { lang: "en" }, {}];
 
-  for (const config of attempts) {
-    try {
-      const transcript = await YoutubeTranscript.fetchTranscript(
-        videoId,
-        config
-      );
-      return transcript.map((t) => t.text).join(" ");
-    } catch {
-      continue;
+  // 모든 언어를 동시에 시도, 하나라도 성공하면 사용
+  const results = await Promise.allSettled(
+    attempts.map((config) =>
+      YoutubeTranscript.fetchTranscript(videoId, config)
+    )
+  );
+
+  // ko > en > auto 순서로 성공한 것 사용
+  for (const result of results) {
+    if (result.status === "fulfilled" && result.value.length > 0) {
+      return result.value.map((t) => t.text).join(" ");
     }
   }
 
