@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { YoutubeTranscript } from "youtube-transcript";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY?.trim() });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY?.replace(/\s/g, "") });
 
 function extractVideoId(url: string): string | null {
   const match = url.match(
@@ -42,33 +42,6 @@ async function getTranscript(videoId: string): Promise<string> {
   }
 
   return "";
-}
-
-async function getTranscriptFromWhisper(videoId: string): Promise<string> {
-  const videoUrl = encodeURIComponent(
-    `https://www.youtube.com/watch?v=${videoId}`
-  );
-
-  const res = await fetch(
-    `https://speech-to-text-ai.p.rapidapi.com/transcribe?url=${videoUrl}&lang=ko&task=transcribe`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-rapidapi-key": process.env.RAPIDAPI_KEY?.trim() || "",
-        "x-rapidapi-host": "speech-to-text-ai.p.rapidapi.com",
-      },
-      body: JSON.stringify({}),
-    }
-  );
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`음성 인식 실패: ${errText.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  return data.text || data.transcript || "";
 }
 
 async function summarizeRecipe(transcript: string, title: string) {
@@ -128,7 +101,7 @@ ${transcript.slice(0, 8000)}`;
 
 export async function POST(req: NextRequest) {
   try {
-    const { url, mode } = await req.json();
+    const { url } = await req.json();
     if (!url) {
       return NextResponse.json(
         { detail: "URL이 필요합니다." },
@@ -145,62 +118,16 @@ export async function POST(req: NextRequest) {
     }
 
     const videoInfo = await getVideoInfo(videoId);
+    const transcript = await getTranscript(videoId);
 
-    // mode=check: 자막만 확인하고 결과 반환
-    if (mode === "check") {
-      const transcript = await getTranscript(videoId);
-      if (transcript) {
-        const recipe = await summarizeRecipe(transcript, videoInfo.title);
-        return NextResponse.json({
-          video_id: videoId,
-          title: videoInfo.title,
-          thumbnail: videoInfo.thumbnail,
-          recipe,
-          method: "subtitle",
-        });
-      }
-      // 자막 없음 → 프론트에 알림
+    // 자막 없으면 영상 정보만 반환
+    if (!transcript) {
       return NextResponse.json({
         video_id: videoId,
         title: videoInfo.title,
         thumbnail: videoInfo.thumbnail,
-        method: "need_whisper",
+        method: "no_subtitle",
       });
-    }
-
-    // mode=whisper: 음성 인식으로 추출
-    if (mode === "whisper") {
-      const transcript = await getTranscriptFromWhisper(videoId);
-      if (!transcript) {
-        return NextResponse.json(
-          { detail: "음성을 인식할 수 없는 영상입니다." },
-          { status: 400 }
-        );
-      }
-      const recipe = await summarizeRecipe(transcript, videoInfo.title);
-      return NextResponse.json({
-        video_id: videoId,
-        title: videoInfo.title,
-        thumbnail: videoInfo.thumbnail,
-        recipe,
-        method: "whisper",
-      });
-    }
-
-    // 기본: 자막 → whisper 순차 시도
-    let transcript = await getTranscript(videoId);
-    let method = "subtitle";
-
-    if (!transcript) {
-      transcript = await getTranscriptFromWhisper(videoId);
-      method = "whisper";
-    }
-
-    if (!transcript) {
-      return NextResponse.json(
-        { detail: "자막과 음성 모두 추출할 수 없는 영상입니다." },
-        { status: 400 }
-      );
     }
 
     const recipe = await summarizeRecipe(transcript, videoInfo.title);
@@ -210,7 +137,7 @@ export async function POST(req: NextRequest) {
       title: videoInfo.title,
       thumbnail: videoInfo.thumbnail,
       recipe,
-      method,
+      method: "subtitle",
     });
   } catch (err) {
     const message =

@@ -25,7 +25,6 @@ export default function HomePage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("");
-  const [whisperInProgress, setWhisperInProgress] = useState(false);
   const [error, setError] = useState("");
   const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<SavedRecipe | null>(null);
@@ -94,11 +93,10 @@ export default function HomePage() {
     setGuestRecipe(null);
 
     try {
-      // 1단계: 자막 확인
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, mode: "check" }),
+        body: JSON.stringify({ url }),
       });
 
       if (!res.ok) {
@@ -106,31 +104,13 @@ export default function HomePage() {
         throw new Error(data.detail || "레시피 추출에 실패했습니다.");
       }
 
-      let data = await res.json();
+      const data = await res.json();
 
-      // 2단계: 자막 없으면 whisper
-      if (data.method === "need_whisper") {
-        if (whisperInProgress) {
-          alert("AI 음성 분석은 한 번에 하나만 가능해요!");
-          setLoading(false);
-          return;
-        }
-        setWhisperInProgress(true);
-        setLoadingMsg("자막이 없어 AI가 음성을 분석하여 레시피를 작성중이에요...");
-
-        const res2 = await fetch("/api/extract", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, mode: "whisper" }),
-        });
-
-        setWhisperInProgress(false);
-
-        if (!res2.ok) {
-          const errData = await res2.json();
-          throw new Error(errData.detail || "음성 인식에 실패했습니다.");
-        }
-        data = await res2.json();
+      if (data.method === "no_subtitle") {
+        setError("이 영상은 자막이 없어 AI 분석이 불가해요. 자막이 있는 영상을 넣어주세요!");
+        setLoading(false);
+        setLoadingMsg("");
+        return;
       }
 
       setGuestRecipe(data);
@@ -138,7 +118,6 @@ export default function HomePage() {
       localStorage.setItem(GUEST_TRIED_KEY, "true");
       setUrl("");
     } catch (err) {
-      setWhisperInProgress(false);
       setError(err instanceof Error ? err.message : "알 수 없는 오류");
     } finally {
       setLoading(false);
@@ -156,11 +135,10 @@ export default function HomePage() {
     setError("");
 
     try {
-      // 1단계: 자막 확인
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, mode: "check" }),
+        body: JSON.stringify({ url }),
       });
 
       if (!res.ok) {
@@ -168,31 +146,30 @@ export default function HomePage() {
         throw new Error(data.detail || "레시피 추출에 실패했습니다.");
       }
 
-      let data = await res.json();
+      const data = await res.json();
 
-      // 2단계: 자막 없으면 whisper
-      if (data.method === "need_whisper") {
-        if (whisperInProgress) {
-          alert("AI 음성 분석은 한 번에 하나만 가능해요!");
-          setLoading(false);
-          return;
-        }
-        setWhisperInProgress(true);
-        setLoadingMsg("자막이 없어 AI가 음성을 분석하여 레시피를 작성중이에요...");
-
-        const res2 = await fetch("/api/extract", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, mode: "whisper" }),
-        });
-
-        setWhisperInProgress(false);
-
-        if (!res2.ok) {
-          const errData = await res2.json();
-          throw new Error(errData.detail || "음성 인식에 실패했습니다.");
-        }
-        data = await res2.json();
+      if (data.method === "no_subtitle") {
+        setError("이 영상은 자막이 없어 AI 분석이 불가해요. 영상 정보만 기록해놓을게요!");
+        // 자막 없는 영상은 기본 정보만 저장
+        const basicRecipe = {
+          video_id: data.video_id,
+          title: data.title,
+          thumbnail: data.thumbnail,
+          recipe: {
+            food_name: data.title,
+            category: "기타",
+            servings: 1,
+            ingredients: [],
+            steps: ["자막이 없어 레시피를 추출할 수 없습니다. 영상을 직접 확인해주세요."],
+            tips: "",
+          },
+        };
+        await saveRecipe(basicRecipe, user.id);
+        await loadRecipes();
+        setUrl("");
+        setLoading(false);
+        setLoadingMsg("");
+        return;
       }
 
       const saved = await saveRecipe(data, user.id);
@@ -201,7 +178,6 @@ export default function HomePage() {
       setView("detail");
       setUrl("");
     } catch (err) {
-      setWhisperInProgress(false);
       setError(err instanceof Error ? err.message : "알 수 없는 오류");
     } finally {
       setLoading(false);
