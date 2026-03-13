@@ -58,18 +58,22 @@ export default function HomePage() {
   }, [supabase.auth, loadRecipes]);
 
   useEffect(() => {
-    // URL에 auth 토큰이 있으면 hash 제거
-    if (window.location.hash && window.location.hash.includes("access_token")) {
-      // supabase client가 hash에서 토큰을 자동 감지
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          setUser(session.user);
-          setAuthLoading(false);
-          loadRecipes();
-          // URL 정리
-          window.history.replaceState(null, "", window.location.pathname);
-        }
-      });
+    // URL hash에 access_token이 있으면 직접 세션 설정
+    const hash = window.location.hash;
+    if (hash && hash.includes("access_token")) {
+      const params = new URLSearchParams(hash.substring(1));
+      const access_token = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+      if (access_token && refresh_token) {
+        supabase.auth.setSession({ access_token, refresh_token }).then(({ data: { session } }) => {
+          if (session) {
+            setUser(session.user);
+            setAuthLoading(false);
+            loadRecipes();
+            window.history.replaceState(null, "", window.location.pathname);
+          }
+        });
+      }
     } else {
       checkUser();
     }
