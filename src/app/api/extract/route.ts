@@ -77,7 +77,7 @@ async function getPinnedComment(videoId: string, channelId: string): Promise<{ c
 
   try {
     const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&order=relevance&maxResults=20&key=${YOUTUBE_API_KEY}`
+      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&order=relevance&maxResults=5&key=${YOUTUBE_API_KEY}`
     );
     if (!res.ok) {
       const text = await res.text();
