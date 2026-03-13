@@ -13,7 +13,8 @@ export async function getSavedRecipes(): Promise<SavedRecipe[]> {
 
   if (error) throw error;
 
-  return (data || []).map((row: Record<string, unknown>) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data || []).map((row: any) => ({
     video_id: row.video_id,
     title: row.title,
     thumbnail: row.thumbnail,
