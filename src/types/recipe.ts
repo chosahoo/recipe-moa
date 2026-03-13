@@ -20,3 +20,10 @@ export interface SavedRecipe extends RecipeResponse {
   is_favorite: boolean;
   db_id?: string;
 }
+
+export interface UserProfile {
+  user_id: string;
+  referral_code: string;
+  daily_limit: number;
+  created_at: string;
+}

@@ -1,5 +1,5 @@
 import { createClient } from "./supabase";
-import { RecipeResponse, SavedRecipe } from "@/types/recipe";
+import { RecipeResponse, SavedRecipe, UserProfile } from "@/types/recipe";
 
 function getSupabase() {
   return createClient();
@@ -109,4 +109,89 @@ export async function deleteRecipe(recipeId: string): Promise<void> {
     .eq("id", recipeId);
 
   if (error) throw error;
+}
+
+function generateReferralCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
+export async function getOrCreateProfile(userId: string): Promise<UserProfile> {
+  const supabase = getSupabase();
+
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .select("*")
+    .eq("user_id", userId)
+    .single();
+
+  if (data) return data as UserProfile;
+
+  // Profile doesn't exist, create one
+  if (error && error.code === "PGRST116") {
+    const { data: newProfile, error: insertError } = await supabase
+      .from("user_profiles")
+      .insert({ user_id: userId, referral_code: generateReferralCode(), daily_limit: 1 })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+    return newProfile as UserProfile;
+  }
+
+  throw error;
+}
+
+export async function getTodayExtractionCount(userId: string): Promise<number> {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const { count, error } = await getSupabase()
+    .from("extraction_log")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gte("created_at", todayStart.toISOString());
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function logExtraction(userId: string, videoId: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from("extraction_log")
+    .insert({ user_id: userId, video_id: videoId });
+
+  if (error) throw error;
+}
+
+export async function applyReferral(referralCode: string, newUserId: string): Promise<boolean> {
+  const supabase = getSupabase();
+
+  // Find the referrer by code
+  const { data: referrer, error: findError } = await supabase
+    .from("user_profiles")
+    .select("*")
+    .eq("referral_code", referralCode)
+    .single();
+
+  if (findError || !referrer) return false;
+
+  // Don't allow self-referral
+  if (referrer.user_id === newUserId) return false;
+
+  // Increase referrer's daily limit to 5 (idempotent)
+  if (referrer.daily_limit < 5) {
+    const { error: updateError } = await supabase
+      .from("user_profiles")
+      .update({ daily_limit: 5 })
+      .eq("user_id", referrer.user_id);
+
+    if (updateError) throw updateError;
+  }
+
+  return true;
 }

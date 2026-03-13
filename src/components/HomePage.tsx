@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, FormEvent } from "react";
-import { RecipeResponse, SavedRecipe } from "@/types/recipe";
+import { RecipeResponse, SavedRecipe, UserProfile } from "@/types/recipe";
 import {
   getSavedRecipes,
   saveRecipe,
   deleteRecipe as deleteRecipeDB,
+  getOrCreateProfile,
+  getTodayExtractionCount,
+  logExtraction,
+  applyReferral,
 } from "@/lib/recipes-db";
 import { createClient } from "@/lib/supabase";
 import RecipeCard from "@/components/RecipeCard";
@@ -34,6 +38,11 @@ export default function HomePage() {
   // 비로그인 체험용
   const [guestRecipe, setGuestRecipe] = useState<RecipeResponse | null>(null);
   const [guestTried, setGuestTried] = useState(false);
+  // 추출 제한 & 리퍼럴
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [todayCount, setTodayCount] = useState(0);
+  const [limitReached, setLimitReached] = useState(false);
+  const [referralCopied, setReferralCopied] = useState(false);
 
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
@@ -60,17 +69,46 @@ export default function HomePage() {
     // SIGNED_IN: OAuth hash에서 세션 감지
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
       if (session?.user) {
         loadRecipes();
+        // 프로필 생성/조회 & 추출 횟수 확인
+        try {
+          const p = await getOrCreateProfile(session.user.id);
+          setProfile(p);
+          const count = await getTodayExtractionCount(session.user.id);
+          setTodayCount(count);
+          setLimitReached(count >= p.daily_limit);
+        } catch {
+          // 프로필 로드 실패 시 기본값 유지
+        }
+        // 리퍼럴 코드 적용 (신규 가입 시)
+        if (event === "SIGNED_IN") {
+          const params = new URLSearchParams(window.location.search);
+          const refCode = params.get("ref");
+          if (refCode) {
+            try {
+              await applyReferral(refCode, session.user.id);
+              // ref 파라미터 제거
+              params.delete("ref");
+              const newSearch = params.toString();
+              window.history.replaceState(null, "", window.location.pathname + (newSearch ? `?${newSearch}` : ""));
+            } catch {
+              // 리퍼럴 적용 실패 무시
+            }
+          }
+        }
         // OAuth hash 정리
         if (window.location.hash && window.location.hash.includes("access_token")) {
-          window.history.replaceState(null, "", window.location.pathname);
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }
       } else {
         setSavedRecipes([]);
+        setProfile(null);
+        setTodayCount(0);
+        setLimitReached(false);
       }
     });
 
@@ -130,9 +168,20 @@ export default function HomePage() {
     e.preventDefault();
     if (!url.trim() || !user) return;
 
+    // 추출 제한 확인
+    if (profile) {
+      const count = await getTodayExtractionCount(user.id);
+      setTodayCount(count);
+      if (count >= profile.daily_limit) {
+        setLimitReached(true);
+        return;
+      }
+    }
+
     setLoading(true);
     setLoadingMsg("AI가 레시피를 추출중이에요...");
     setError("");
+    setLimitReached(false);
 
     try {
       const res = await fetch("/api/extract", {
@@ -165,12 +214,21 @@ export default function HomePage() {
           },
         };
         await saveRecipe(basicRecipe, user.id);
+        await logExtraction(user.id, data.video_id);
+        const newCount = todayCount + 1;
+        setTodayCount(newCount);
+        if (profile && newCount >= profile.daily_limit) setLimitReached(true);
         await loadRecipes();
         setUrl("");
         setLoading(false);
         setLoadingMsg("");
         return;
       }
+
+      await logExtraction(user.id, data.video_id);
+      const newCount = todayCount + 1;
+      setTodayCount(newCount);
+      if (profile && newCount >= profile.daily_limit) setLimitReached(true);
 
       const saved = await saveRecipe(data, user.id);
       await loadRecipes();
@@ -198,6 +256,15 @@ export default function HomePage() {
     setView("home");
     setSelectedRecipe(null);
     setError("");
+    setLimitReached(false);
+  };
+
+  const copyReferralLink = () => {
+    if (!profile) return;
+    const link = `https://xn--om2b21rhzo.site/?ref=${profile.referral_code}`;
+    navigator.clipboard.writeText(link);
+    setReferralCopied(true);
+    setTimeout(() => setReferralCopied(false), 2000);
   };
 
   const filteredRecipes = savedRecipes
@@ -400,12 +467,21 @@ export default function HomePage() {
           </button>
           <div className="flex items-center gap-3">
             {view === "home" && (
-              <button
-                onClick={() => setView("extract")}
-                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-              >
-                + 새 레시피
-              </button>
+              <>
+                <button
+                  onClick={copyReferralLink}
+                  className="text-gray-500 hover:text-orange-500 text-sm font-medium transition-colors cursor-pointer"
+                  title="초대 링크 복사"
+                >
+                  {referralCopied ? "복사됨!" : "친구 초대"}
+                </button>
+                <button
+                  onClick={() => setView("extract")}
+                  className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                >
+                  + 새 레시피
+                </button>
+              </>
             )}
             <AuthButton user={user} onAuthChange={refreshAuth} />
           </div>
@@ -430,6 +506,32 @@ export default function HomePage() {
             >
               &#8592; 목록으로
             </button>
+
+            {/* 남은 추출 횟수 */}
+            {profile && (
+              <div className="mb-4 text-sm text-gray-500 text-right">
+                오늘 남은 추출: {Math.max(0, profile.daily_limit - todayCount)}/{profile.daily_limit}회
+              </div>
+            )}
+
+            {/* 추출 제한 도달 메시지 */}
+            {limitReached && profile && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-5 mb-6 text-center">
+                <p className="text-gray-800 font-semibold mb-2">
+                  오늘의 추출 횟수를 모두 사용했어요!
+                </p>
+                <p className="text-sm text-gray-500 mb-4">
+                  친구에게 공유하면 하루 5회까지 가능해요!
+                </p>
+                <button
+                  onClick={copyReferralLink}
+                  className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                >
+                  {referralCopied ? "복사 완료!" : "초대 링크 복사하기"}
+                </button>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="mb-8">
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
