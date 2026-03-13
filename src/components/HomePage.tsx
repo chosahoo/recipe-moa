@@ -37,6 +37,13 @@ export default function HomePage() {
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
 
+  const refreshAuth = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setUser(session?.user ?? null);
+    if (session?.user) loadRecipes();
+    else setSavedRecipes([]);
+  }, [supabase.auth]);
+
   const loadRecipes = useCallback(async () => {
     try {
       const recipes = await getSavedRecipes();
@@ -46,46 +53,33 @@ export default function HomePage() {
     }
   }, []);
 
-  const checkUser = useCallback(async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    setUser(session?.user ?? null);
-    setAuthLoading(false);
-    if (session?.user) {
-      loadRecipes();
-    }
-  }, [supabase.auth, loadRecipes]);
-
   useEffect(() => {
-    checkUser();
-
-    // URL hash에 access_token이 있으면 정리
-    if (window.location.hash && window.location.hash.includes("access_token")) {
-      // Supabase 클라이언트가 자동 감지할 시간을 줌
-      setTimeout(() => {
-        window.history.replaceState(null, "", window.location.pathname);
-      }, 2000);
-    }
+    // onAuthStateChange가 모든 세션 변화를 처리
+    // INITIAL_SESSION: 첫 로드 시 기존 세션 감지
+    // SIGNED_IN: OAuth hash에서 세션 감지
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+      if (session?.user) {
+        loadRecipes();
+        // OAuth hash 정리
+        if (window.location.hash && window.location.hash.includes("access_token")) {
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+      } else {
+        setSavedRecipes([]);
+      }
+    });
 
     // 게스트 체험 여부 확인
     if (localStorage.getItem(GUEST_TRIED_KEY)) {
       setGuestTried(true);
     }
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadRecipes();
-      } else {
-        setSavedRecipes([]);
-      }
-    });
-
     return () => subscription.unsubscribe();
-  }, [supabase.auth, checkUser, loadRecipes]);
+  }, [supabase.auth, loadRecipes]);
 
   // 비로그인 체험 추출
   const handleGuestSubmit = async (e: FormEvent) => {
@@ -187,7 +181,7 @@ export default function HomePage() {
         <header className="bg-white shadow-sm sticky top-0 z-10">
           <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
             <button onClick={() => { setGuestRecipe(null); setError(""); setUrl(""); }} className="text-xl font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors">레시피모아</button>
-            <AuthButton user={null} onAuthChange={checkUser} />
+            <AuthButton user={null} onAuthChange={refreshAuth} />
           </div>
         </header>
 
@@ -274,7 +268,7 @@ export default function HomePage() {
               <p className="text-gray-500 mb-6">
                 레시피를 저장하고 다시 보려면 로그인하세요
               </p>
-              <AuthButton user={null} onAuthChange={checkUser} />
+              <AuthButton user={null} onAuthChange={refreshAuth} />
             </div>
           ) : null}
 
@@ -340,7 +334,7 @@ export default function HomePage() {
                 <p className="text-sm text-gray-500 mb-4">
                   로그인하면 레시피 저장, 즐겨찾기, 공유 기능을 모두 사용할 수 있어요
                 </p>
-                <AuthButton user={null} onAuthChange={checkUser} />
+                <AuthButton user={null} onAuthChange={refreshAuth} />
               </div>
             </div>
           )}
@@ -369,7 +363,7 @@ export default function HomePage() {
                 + 새 레시피
               </button>
             )}
-            <AuthButton user={user} onAuthChange={checkUser} />
+            <AuthButton user={user} onAuthChange={refreshAuth} />
           </div>
         </div>
       </header>
