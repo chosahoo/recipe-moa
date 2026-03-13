@@ -169,7 +169,8 @@ export default function HomePage() {
       localStorage.setItem(GUEST_TRIED_KEY, "true");
       setUrl("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "알 수 없는 오류");
+      const msg = err instanceof Error ? err.message : typeof err === "object" && err !== null ? JSON.stringify(err) : String(err);
+      setError(msg);
     } finally {
       setLoading(false);
       setLoadingMsg("");
@@ -251,7 +252,8 @@ export default function HomePage() {
       setView("detail");
       setUrl("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "알 수 없는 오류");
+      const msg = err instanceof Error ? err.message : typeof err === "object" && err !== null ? JSON.stringify(err) : String(err);
+      setError(msg);
     } finally {
       setLoading(false);
       setLoadingMsg("");
