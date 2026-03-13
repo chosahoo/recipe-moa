@@ -184,46 +184,59 @@ export default function HomePage() {
 
         <div className="max-w-3xl mx-auto px-4 mt-8">
           {/* 히어로 */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-10">
             <p className="text-5xl mb-4">&#127859;</p>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            <h2 className="text-2xl font-bold text-gray-800 mb-3">
               유튜브 영상 → 레시피 자동 정리
             </h2>
-            <p className="text-gray-500">
+            <p className="text-gray-500 mb-6">
               요리 영상 URL을 넣어보세요. 바로 체험할 수 있어요!
             </p>
+            <div className="grid grid-cols-3 gap-3 max-w-md mx-auto text-center mb-2">
+              <div className="bg-white rounded-xl p-3 shadow-sm">
+                <p className="text-2xl mb-1">&#128196;</p>
+                <p className="text-xs text-gray-600 font-medium">자동 레시피 추출</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 shadow-sm">
+                <p className="text-2xl mb-1">&#128203;</p>
+                <p className="text-xs text-gray-600 font-medium">재료 &middot; 순서 정리</p>
+              </div>
+              <div className="bg-white rounded-xl p-3 shadow-sm">
+                <p className="text-2xl mb-1">&#128279;</p>
+                <p className="text-xs text-gray-600 font-medium">카톡 공유 &middot; 저장</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mt-4">카톡, 인스타에 흩어진 레시피 링크를 AI가 깔끔하게 정리해드려요</p>
           </div>
 
           {/* 체험 입력란 */}
           {!guestTried ? (
             <>
-              <form onSubmit={handleGuestSubmit} className="mb-8">
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <input
-                    type="text"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="유튜브 요리 영상 URL을 붙여넣으세요 (숏츠도 가능)"
-                    className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent text-gray-900 placeholder-gray-400"
-                  />
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white px-6 py-3 rounded-xl font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
-                  >
-                    {loading ? (
-                      <span className="flex items-center gap-2 justify-center">
-                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        추출 중...
-                      </span>
-                    ) : (
-                      "레시피 추출"
-                    )}
-                  </button>
-                </div>
+              <form onSubmit={handleGuestSubmit} className="mb-8 max-w-lg mx-auto">
+                <input
+                  type="text"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="유튜브 요리 영상 URL 붙여넣기"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent text-gray-900 placeholder-gray-400 mb-3"
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white px-8 py-3 rounded-xl font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2 justify-center">
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      추출 중...
+                    </span>
+                  ) : (
+                    "레시피 추출"
+                  )}
+                </button>
               </form>
 
               {error && (
