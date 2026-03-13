@@ -74,11 +74,7 @@ export default function HomePage() {
         supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
-        }).then(({ error }) => {
-          if (error) {
-            alert(`로그인 실패: ${error.message}`);
-          }
-          // 성공 시 onAuthStateChange가 처리
+        }).then(() => {
           window.history.replaceState(null, "", window.location.pathname);
         });
       }
