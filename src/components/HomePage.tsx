@@ -72,7 +72,7 @@ export default function HomePage() {
             window.history.replaceState(null, "", window.location.pathname);
           }
           if (error) {
-            console.error("setSession error:", error);
+            alert(`세션 설정 에러: ${error.message}`);
           }
           setAuthLoading(false);
         }).catch(() => {
