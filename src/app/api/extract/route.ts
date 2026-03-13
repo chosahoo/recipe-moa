@@ -162,10 +162,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const videoInfo = await getVideoInfo(videoId);
+    // 영상 정보, 자막, 설명란, 댓글을 동시에 가져옴
+    const [videoInfo, transcript, description, comment] = await Promise.all([
+      getVideoInfo(videoId),
+      getTranscript(videoId),
+      getDescription(videoId),
+      getPinnedComment(videoId),
+    ]);
 
-    // 1. 자막 시도
-    const transcript = await getTranscript(videoId);
+    // 레시피 품질 검증: 재료 3개 이상 + 조리 단계 2개 이상
+    const isValidRecipe = (r: { ingredients?: string[]; steps?: string[] }) =>
+      r.ingredients && r.ingredients.length >= 3 && r.steps && r.steps.length >= 2;
+
+    // 1. 자막 우선
     if (transcript) {
       const recipe = await summarizeRecipe(transcript, videoInfo.title, "subtitle");
       return NextResponse.json({
@@ -177,12 +186,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 레시피 품질 검증: 재료 3개 이상 + 조리 단계 2개 이상
-    const isValidRecipe = (r: { ingredients?: string[]; steps?: string[] }) =>
-      r.ingredients && r.ingredients.length >= 3 && r.steps && r.steps.length >= 2;
-
     // 2. 설명란 시도
-    const description = await getDescription(videoId);
     if (description && description.length > 50) {
       try {
         const recipe = await summarizeRecipe(description, videoInfo.title, "description");
@@ -201,7 +205,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. 핀 댓글 시도
-    const comment = await getPinnedComment(videoId);
     if (comment) {
       try {
         const recipe = await summarizeRecipe(comment, videoInfo.title, "comment");

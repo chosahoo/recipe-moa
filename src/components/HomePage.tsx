@@ -298,7 +298,7 @@ export default function HomePage() {
       <main className="min-h-screen pb-20">
         <header className="bg-white shadow-sm sticky top-0 z-10">
           <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-            <button onClick={() => { setGuestRecipe(null); setError(""); setUrl(""); }} className="text-xl font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors">레시피모아</button>
+            <button onClick={() => { setGuestRecipe(null); setGuestTried(false); setError(""); setUrl(""); localStorage.removeItem(GUEST_TRIED_KEY); }} className="text-xl font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors">레시피모아</button>
             <AuthButton user={null} onAuthChange={refreshAuth} />
           </div>
         </header>
