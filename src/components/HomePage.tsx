@@ -46,6 +46,7 @@ export default function HomePage() {
 
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
+  const authInitialized = useRef(false);
 
   const refreshAuth = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -80,20 +81,17 @@ export default function HomePage() {
       }
     }
 
-    let initialized = false;
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-      const prevUser = initialized ? undefined : null;
       setUser(session?.user ?? null);
       setAuthLoading(false);
 
       if (session?.user) {
         // 첫 로드 또는 로그인 시에만 데이터 로드 (TOKEN_REFRESHED에서는 스킵)
-        if (!initialized || event === "SIGNED_IN") {
-          initialized = true;
-          loadRecipes();
+        if (!authInitialized.current || event === "SIGNED_IN") {
+          authInitialized.current = true;
+          await loadRecipes();
           try {
             const p = await getOrCreateProfile(session.user.id);
             setProfile(p);
