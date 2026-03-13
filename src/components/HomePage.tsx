@@ -139,11 +139,11 @@ export default function HomePage() {
     if (!url.trim()) return;
 
     setLoading(true);
-    setLoadingMsg("댓글·설명에서 레시피를 찾는 중...");
+    setLoadingMsg("AI가 레시피를 추출중이에요...");
     setError("");
     setGuestRecipe(null);
 
-    const msgTimer = setTimeout(() => setLoadingMsg("자막에서 레시피를 분석중이에요. 조금만 기다려주세요!"), 5000);
+    const msgTimer = setTimeout(() => setLoadingMsg("자막에서 레시피를 분석중이에요. 조금만 기다려주세요!"), 10000);
 
     try {
       const res = await fetch("/api/extract", {
@@ -197,11 +197,11 @@ export default function HomePage() {
     }
 
     setLoading(true);
-    setLoadingMsg("댓글·설명에서 레시피를 찾는 중...");
+    setLoadingMsg("AI가 레시피를 추출중이에요...");
     setError("");
     setLimitReached(false);
 
-    const msgTimer2 = setTimeout(() => setLoadingMsg("자막에서 레시피를 분석중이에요. 조금만 기다려주세요!"), 5000);
+    const msgTimer2 = setTimeout(() => setLoadingMsg("자막에서 레시피를 분석중이에요. 조금만 기다려주세요!"), 10000);
 
     try {
       const res = await fetch("/api/extract", {
