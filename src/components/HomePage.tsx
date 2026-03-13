@@ -65,22 +65,6 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    // OAuth hash에서 수동으로 세션 설정 (detectSessionInUrl 폴백)
-    const hash = window.location.hash;
-    if (hash && hash.includes("access_token")) {
-      const params = new URLSearchParams(hash.substring(1));
-      const accessToken = params.get("access_token")?.replace(/\s/g, "");
-      const refreshToken = params.get("refresh_token")?.replace(/\s/g, "");
-      if (accessToken && refreshToken) {
-        supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        }).then(() => {
-          window.history.replaceState(null, "", window.location.pathname);
-        });
-      }
-    }
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
@@ -88,8 +72,8 @@ export default function HomePage() {
       setAuthLoading(false);
 
       if (session?.user) {
-        // 첫 로드 또는 로그인 시에만 데이터 로드 (TOKEN_REFRESHED에서는 스킵)
-        if (!authInitialized.current || event === "SIGNED_IN") {
+        // 첫 로드 시에만 데이터 로드 (TOKEN_REFRESHED에서는 스킵)
+        if (!authInitialized.current) {
           authInitialized.current = true;
           try {
             const [, p, count] = await Promise.all([
@@ -101,30 +85,26 @@ export default function HomePage() {
             setTodayCount(count);
             setLimitReached(count >= p.daily_limit);
           } catch {
-            // 프로필 로드 실패해도 레시피는 이미 로드됨
             loadRecipes();
           }
-        }
-        // 리퍼럴 코드 적용 (신규 가입 시)
-        if (event === "SIGNED_IN") {
-          const params = new URLSearchParams(window.location.search);
-          const refCode = params.get("ref");
+          // 리퍼럴 코드 적용
+          const searchParams = new URLSearchParams(window.location.search);
+          const refCode = searchParams.get("ref");
           if (refCode) {
             try {
               await applyReferral(refCode, session.user.id);
-              params.delete("ref");
-              const newSearch = params.toString();
-              window.history.replaceState(null, "", window.location.pathname + (newSearch ? `?${newSearch}` : ""));
-            } catch {
-              // 리퍼럴 적용 실패 무시
-            }
+            } catch { /* 무시 */ }
+            searchParams.delete("ref");
+            const newSearch = searchParams.toString();
+            window.history.replaceState(null, "", window.location.pathname + (newSearch ? `?${newSearch}` : ""));
+          }
+          // OAuth hash 정리
+          if (window.location.hash && window.location.hash.includes("access_token")) {
+            window.history.replaceState(null, "", window.location.pathname + window.location.search);
           }
         }
-        // OAuth hash 정리
-        if (window.location.hash && window.location.hash.includes("access_token")) {
-          window.history.replaceState(null, "", window.location.pathname + window.location.search);
-        }
       } else if (event === "SIGNED_OUT") {
+        authInitialized.current = false;
         setSavedRecipes([]);
         setProfile(null);
         setTodayCount(0);
