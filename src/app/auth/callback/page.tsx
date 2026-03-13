@@ -10,14 +10,21 @@ export default function AuthCallback() {
   useEffect(() => {
     const supabase = createClient();
 
+    // implicit flow: hash에서 세션 자동 감지
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.replace("/");
+      }
+    });
+
     supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") {
         router.replace("/");
       }
     });
 
-    // fallback: 3초 후에도 안 되면 홈으로
-    const timeout = setTimeout(() => router.replace("/"), 3000);
+    // fallback
+    const timeout = setTimeout(() => router.replace("/"), 5000);
     return () => clearTimeout(timeout);
   }, [router]);
 

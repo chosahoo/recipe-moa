@@ -15,6 +15,10 @@ export function createClient(): SupabaseClient {
     );
   }
 
-  client = createSupabaseClient(url, key);
+  client = createSupabaseClient(url, key, {
+    auth: {
+      flowType: "implicit",
+    },
+  });
   return client;
 }
