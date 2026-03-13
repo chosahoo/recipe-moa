@@ -190,16 +190,6 @@ export default function HomePage() {
     e.preventDefault();
     if (!url.trim() || !user) return;
 
-    // 추출 제한 확인
-    if (profile) {
-      const count = await getTodayExtractionCount(user.id);
-      setTodayCount(count);
-      if (count >= profile.daily_limit) {
-        setLimitReached(true);
-        return;
-      }
-    }
-
     setLoading(true);
     setLoadingMsg("AI가 레시피를 추출중이에요...");
     setError("");
@@ -208,6 +198,19 @@ export default function HomePage() {
     const msgTimer2 = setTimeout(() => setLoadingMsg("자막에서 레시피를 분석중이에요. 조금만 기다려주세요!"), 10000);
 
     try {
+      // 추출 제한 확인
+      if (profile) {
+        const count = await getTodayExtractionCount(user.id);
+        setTodayCount(count);
+        if (count >= profile.daily_limit) {
+          setLimitReached(true);
+          setLoading(false);
+          setLoadingMsg("");
+          clearTimeout(msgTimer2);
+          return;
+        }
+      }
+
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
