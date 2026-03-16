@@ -48,13 +48,6 @@ export default function HomePage() {
   const supabase = supabaseRef.current;
   const authInitialized = useRef(false);
 
-  const refreshAuth = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    setUser(session?.user ?? null);
-    if (session?.user) loadRecipes();
-    else setSavedRecipes([]);
-  }, [supabase.auth]);
-
   const loadRecipes = useCallback(async () => {
     try {
       const recipes = await getSavedRecipes();
@@ -64,46 +57,71 @@ export default function HomePage() {
     }
   }, []);
 
+  const loadUserData = useCallback(async (userId: string) => {
+    try {
+      const [, p, count] = await Promise.all([
+        loadRecipes(),
+        getOrCreateProfile(userId),
+        getTodayExtractionCount(userId),
+      ]);
+      setProfile(p);
+      setTodayCount(count);
+      setLimitReached(count >= p.daily_limit);
+    } catch {
+      loadRecipes();
+    }
+  }, [loadRecipes]);
+
+  const refreshAuth = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setUser(session?.user ?? null);
+    if (session?.user) {
+      authInitialized.current = true;
+      await loadUserData(session.user.id);
+    } else {
+      authInitialized.current = false;
+      setSavedRecipes([]);
+      setProfile(null);
+      setTodayCount(0);
+      setLimitReached(false);
+    }
+  }, [supabase.auth, loadUserData]);
+
   useEffect(() => {
+    // 1. 즉시 세션 확인 → 데이터 로드 (가장 빠른 경로)
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+      if (session?.user) {
+        authInitialized.current = true;
+        await loadUserData(session.user.id);
+      }
+    });
+
+    // 2. 이후 변경 감지 (OAuth 리다이렉트, 로그아웃 등)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
 
-      if (session?.user) {
-        // 첫 로드 시에만 데이터 로드 (TOKEN_REFRESHED에서는 스킵)
-        if (!authInitialized.current) {
-          authInitialized.current = true;
-          try {
-            const [, p, count] = await Promise.all([
-              loadRecipes(),
-              getOrCreateProfile(session.user.id),
-              getTodayExtractionCount(session.user.id),
-            ]);
-            setProfile(p);
-            setTodayCount(count);
-            setLimitReached(count >= p.daily_limit);
-          } catch {
-            loadRecipes();
-          }
-          // 리퍼럴 코드 적용
-          const searchParams = new URLSearchParams(window.location.search);
-          const refCode = searchParams.get("ref");
-          if (refCode) {
-            try {
-              await applyReferral(refCode, session.user.id);
-            } catch { /* 무시 */ }
-            searchParams.delete("ref");
-            const newSearch = searchParams.toString();
-            window.history.replaceState(null, "", window.location.pathname + (newSearch ? `?${newSearch}` : ""));
-          }
-          // OAuth hash 정리
-          if (window.location.hash && window.location.hash.includes("access_token")) {
-            window.history.replaceState(null, "", window.location.pathname + window.location.search);
-          }
+      if (session?.user && !authInitialized.current) {
+        authInitialized.current = true;
+        await loadUserData(session.user.id);
+        // 리퍼럴 코드 적용
+        const searchParams = new URLSearchParams(window.location.search);
+        const refCode = searchParams.get("ref");
+        if (refCode) {
+          try { await applyReferral(refCode, session.user.id); } catch { /* 무시 */ }
+          searchParams.delete("ref");
+          const newSearch = searchParams.toString();
+          window.history.replaceState(null, "", window.location.pathname + (newSearch ? `?${newSearch}` : ""));
         }
-      } else if (event === "SIGNED_OUT") {
+        // OAuth hash 정리
+        if (window.location.hash?.includes("access_token")) {
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
+      } else if (!session?.user) {
         authInitialized.current = false;
         setSavedRecipes([]);
         setProfile(null);
@@ -118,7 +136,7 @@ export default function HomePage() {
     }
 
     return () => subscription.unsubscribe();
-  }, [supabase.auth, loadRecipes]);
+  }, [supabase.auth, loadUserData]);
 
   // 비로그인 체험 추출
   const handleGuestSubmit = async (e: FormEvent) => {
