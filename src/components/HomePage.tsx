@@ -26,6 +26,7 @@ const CATEGORIES = ["전체", "밥/면", "국/찌개", "반찬", "볶음/구이"
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("");
@@ -58,6 +59,7 @@ export default function HomePage() {
   }, []);
 
   const loadUserData = useCallback(async (userId: string) => {
+    setDataLoading(true);
     try {
       const [, p, count] = await Promise.all([
         loadRecipes(),
@@ -69,6 +71,8 @@ export default function HomePage() {
       setLimitReached(count >= p.daily_limit);
     } catch {
       loadRecipes();
+    } finally {
+      setDataLoading(false);
     }
   }, [loadRecipes]);
 
@@ -633,6 +637,11 @@ export default function HomePage() {
               </div>
             )}
           </>
+        ) : dataLoading ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full mb-3" />
+            <p className="text-sm text-gray-500">레시피를 불러오는 중...</p>
+          </div>
         ) : (
           <>
             {/* 탭 */}
