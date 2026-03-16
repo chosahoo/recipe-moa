@@ -144,23 +144,14 @@ export default function HomePage() {
     const ref = new URLSearchParams(window.location.search).get("ref");
     if (ref) localStorage.setItem("pending_referral", ref);
 
-    let initialLoaded = false;
+    // authLoading 5초 안전장치
+    const authTimeout = setTimeout(() => setAuthLoading(false), 5000);
 
-    // 1. 즉시 세션 확인 → 데이터 로드 (가장 빠른 경로)
-    safeGetSession().then(async (session) => {
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
-      if (session?.user) {
-        authInitialized.current = true;
-        initialLoaded = true;
-        await loadUserData(session.user.id);
-      }
-    });
-
-    // 2. 이후 변경 감지 (OAuth 리다이렉트, 로그아웃 등)
+    // onAuthStateChange 하나로 통합 (INITIAL_SESSION 이벤트가 세션 복원 완료 후 발생)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
+      clearTimeout(authTimeout);
       setUser(session?.user ?? null);
       setAuthLoading(false);
 
@@ -181,9 +172,6 @@ export default function HomePage() {
         if (window.location.hash?.includes("access_token")) {
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }
-      } else if (session?.user && initialLoaded) {
-        // getSession에서 이미 로드했으면 중복 호출 방지
-        return;
       } else if (!session?.user) {
         authInitialized.current = false;
         setSavedRecipes([]);
