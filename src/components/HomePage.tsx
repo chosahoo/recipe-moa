@@ -457,7 +457,7 @@ export default function HomePage() {
       <main className="min-h-screen pb-20">
         <header className="bg-white shadow-sm sticky top-0 z-10">
           <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-            <button onClick={() => { setGuestRecipe(null); setGuestTried(false); setError(""); setUrl(""); localStorage.removeItem(GUEST_TRIED_KEY); }} className="text-xl font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors">&#x1F468;&#x200D;&#x1F373; 레시피모아</button>
+            <button onClick={() => { setGuestRecipe(null); setGuestTried(false); setError(""); setUrl(""); localStorage.removeItem(GUEST_TRIED_KEY); }} className="text-xl font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors flex items-center gap-1.5">&#x1F468;&#x200D;&#x1F373; 레시피모아<span className="bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">GPT</span></button>
             <AuthButton user={null} onAuthChange={refreshAuth} />
           </div>
         </header>
@@ -655,7 +655,7 @@ export default function HomePage() {
             onClick={goHome}
             className="text-xl font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors"
           >
-            &#x1F468;&#x200D;&#x1F373; 레시피모아
+            <span className="flex items-center gap-1.5">&#x1F468;&#x200D;&#x1F373; 레시피모아<span className="bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">GPT</span></span>
           </button>
           <div className="flex items-center gap-3">
             {view === "home" && (

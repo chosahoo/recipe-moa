@@ -152,7 +152,8 @@ export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack 
               ))}
             </div>
           ) : (
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-start gap-2">
+              <span className="text-xl shrink-0">&#x1F916;</span>
               <p className="text-sm text-gray-500">
                 유튜브 설명이나 댓글에 재료 정보가 없어서 AI가 담지 못했어요. 영상을 참고해주세요.
               </p>
@@ -186,7 +187,8 @@ export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack 
               ))}
             </ol>
           ) : (
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-start gap-2">
+              <span className="text-xl shrink-0">&#x1F916;</span>
               <p className="text-sm text-gray-500">
                 유튜브 설명이나 댓글에 조리 순서가 없어서 AI가 담지 못했어요. 영상을 참고해주세요.
               </p>
@@ -195,7 +197,8 @@ export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack 
         </div>
 
         {recipe.recipe.ingredients.length === 0 && recipe.recipe.steps.length === 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-start gap-2">
+            <span className="text-xl shrink-0">&#x1F916;</span>
             <p className="text-sm text-amber-700">
               이 영상은 설명란·댓글에 레시피 정보가 없어서 AI가 재료와 조리 순서를 담지 못했어요. 원본 영상을 직접 확인해주세요.
             </p>
