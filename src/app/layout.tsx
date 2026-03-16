@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     canonical: "https://xn--om2b21rhzo.site",
   },
   verification: {
-    google: "",
+    google: "gPGMXrRNYxEYJWFUzupbu3DCVesA2x5ixHYuGU-fY4M",
   },
 };
 
