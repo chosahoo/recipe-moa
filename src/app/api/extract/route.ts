@@ -201,9 +201,9 @@ export async function POST(req: NextRequest) {
     if (commentResult.error) debug.push(`comment: ${commentResult.error}`);
     else debug.push(`comment: ${comment.length}자`);
 
-    // 레시피 품질 검증: 재료 2개 이상 + 조리 단계 1개 이상
+    // 레시피 품질 검증: 재료 2개 이상이면 유효 (조리 단계는 영상에서 확인)
     const isValidRecipe = (r: { ingredients?: string[]; steps?: string[] }) =>
-      r.ingredients && r.ingredients.length >= 2 && r.steps && r.steps.length >= 1;
+      r.ingredients && r.ingredients.length >= 2;
 
     // 1. 설명란 + 댓글 먼저 시도 (빠름)
     const combined = [description, comment].filter(Boolean).join("\n\n");
