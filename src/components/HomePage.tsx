@@ -237,32 +237,13 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.method === "no_recipe") {
-        setError("이 영상은 설명란·고정댓글에 레시피 정보가 없어 추출이 어려워요. 설명란이나 고정댓글에 재료·레시피가 적힌 영상을 넣어보세요!");
-        // 자막 없는 영상은 기본 정보만 저장
-        const basicRecipe = {
-          video_id: data.video_id,
-          title: data.title,
-          thumbnail: data.thumbnail,
-          recipe: {
-            food_name: data.title,
-            category: "기타",
-            servings: 1,
-            ingredients: [],
-            steps: ["이 영상은 설명란·고정댓글에 레시피 정보가 없어 추출이 어려웠어요. 영상을 직접 확인해주세요."],
-            tips: "",
-          },
-        };
-        await saveRecipe(basicRecipe, user.id);
-        await logExtraction(user.id, data.video_id);
-        const newCount = todayCount + 1;
-        setTodayCount(newCount);
-        if (profile && newCount >= profile.daily_limit) setLimitReached(true);
-        await loadRecipes();
         setUrl("");
         setLoading(false);
         setLoadingMsg("");
-        // 2초 후 리스트로 이동 (에러 메시지 확인 시간)
-        setTimeout(() => { setView("home"); setError(""); }, 2000);
+        setError("이 영상은 설명란·고정댓글에 레시피 정보가 없어 추출이 어려웠어요. 설명란이나 고정댓글에 재료·레시피가 적힌 영상을 넣어보세요!");
+        // 바로 리스트로 이동, 3초 후 에러 메시지 제거
+        setView("home");
+        setTimeout(() => setError(""), 4000);
         return;
       }
 
@@ -374,8 +355,9 @@ export default function HomePage() {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="유튜브 요리 영상 URL 붙여넣기"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent text-gray-900 placeholder-gray-400 mb-3"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent text-gray-900 placeholder-gray-400 mb-2"
                 />
+                <p className="text-xs text-gray-400 mb-3">설명란 또는 고정댓글에 레시피가 적힌 영상에서 추출이 가능해요</p>
                 <button
                   type="submit"
                   disabled={loading}
@@ -715,6 +697,13 @@ export default function HomePage() {
           </div>
         ) : (
           <>
+            {/* 에러 메시지 (추출 실패 후 리스트로 돌아왔을 때) */}
+            {error && (
+              <div className="bg-orange-50 border border-orange-200 text-orange-700 px-4 py-3 rounded-xl mb-4 text-sm">
+                {error}
+              </div>
+            )}
+
             {/* 탭 */}
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6">
               <button
