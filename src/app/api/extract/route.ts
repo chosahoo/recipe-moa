@@ -28,7 +28,7 @@ async function getVideoInfo(videoId: string) {
 }
 
 async function getTranscript(videoId: string): Promise<string> {
-  // 5초 타임아웃으로 자막 시도 (ko만 시도 — 요리 영상은 대부분 한국어)
+  // 1. youtube-transcript 라이브러리 시도 (수동 자막)
   try {
     const result = await Promise.race([
       YoutubeTranscript.fetchTranscript(videoId, { lang: "ko" }),
@@ -36,7 +36,6 @@ async function getTranscript(videoId: string): Promise<string> {
     ]);
     if (result.length > 0) return result.map((t) => t.text).join(" ");
   } catch {
-    // ko 실패 시 auto 한번 더 시도
     try {
       const result = await Promise.race([
         YoutubeTranscript.fetchTranscript(videoId),
@@ -44,10 +43,62 @@ async function getTranscript(videoId: string): Promise<string> {
       ]);
       if (result.length > 0) return result.map((t) => t.text).join(" ");
     } catch {
-      // 자막 없음
+      // 라이브러리 실패
     }
   }
+
+  // 2. 자동생성 자막(asr) 직접 추출 시도
+  try {
+    const text = await fetchAsrTranscript(videoId);
+    if (text) return text;
+  } catch {
+    // asr 추출 실패
+  }
+
   return "";
+}
+
+async function fetchAsrTranscript(videoId: string): Promise<string> {
+  const pageRes = await Promise.race([
+    fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: {
+        "Accept-Language": "ko-KR,ko;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    }),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
+  ]);
+  const html = await pageRes.text();
+
+  const match = html.match(/"captionTracks":\s*(\[.*?\])/);
+  if (!match) return "";
+
+  const tracks = JSON.parse(match[1]) as { baseUrl: string; languageCode: string; kind?: string }[];
+  // ko 자막 우선, 없으면 첫 번째 트랙
+  const koTrack = tracks.find(t => t.languageCode === "ko") || tracks[0];
+  if (!koTrack?.baseUrl) return "";
+
+  const captionRes = await Promise.race([
+    fetch(koTrack.baseUrl),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+  ]);
+  const xml = await captionRes.text();
+  if (!xml) return "";
+
+  // XML에서 텍스트 추출
+  const texts = [...xml.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)]
+    .map(m => m[1]
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/\n/g, " ")
+      .trim()
+    )
+    .filter(Boolean);
+
+  return texts.join(" ");
 }
 
 async function getDescriptionAndChannel(videoId: string): Promise<{ description: string; channelId: string; error?: string }> {
