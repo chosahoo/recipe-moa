@@ -261,31 +261,55 @@ export async function POST(req: NextRequest) {
     if (commentResult.error) debug.push(`comment: ${commentResult.error}`);
     else debug.push(`comment: ${comment.length}자`);
 
-    // 레시피 품질 검증: 재료 2개 이상이면 유효 (조리 단계는 영상에서 확인)
+    // 레시피 품질 검증: 재료 2개 이상 + 조리 단계 1개 이상
     const isValidRecipe = (r: { ingredients?: string[]; steps?: string[] }) =>
-      r.ingredients && r.ingredients.length >= 2;
+      r.ingredients && r.ingredients.length >= 2 && r.steps && r.steps.length >= 1;
 
-    // 1. 설명란 + 댓글 먼저 시도 (빠름)
-    const combined = [description, comment].filter(Boolean).join("\n\n");
-    debug.push(`combined: ${combined.length}자`);
-    if (combined.length > 30) {
+    // 설명란에서 타임스탬프(챕터 정보) 제거
+    const cleanDescription = description
+      .replace(/^\d{1,2}:\d{2}(?::\d{2})?\s*.*/gm, "") // "0:00 인사말" 같은 줄 제거
+      .replace(/\n{3,}/g, "\n\n") // 빈 줄 정리
+      .trim();
+
+    // 1. 고정 댓글 우선 시도 (레시피가 잘 정리되어 있는 경우가 많음)
+    if (comment && comment.length > 30) {
       try {
-        const source = comment ? "comment" : "description";
-        const recipe = await summarizeRecipe(combined, videoInfo.title, source);
-        debug.push(`recipe from ${source}: food=${recipe.food_name}, ing=${recipe.ingredients?.length}, steps=${recipe.steps?.length}`);
+        const recipe = await summarizeRecipe(comment, videoInfo.title, "comment");
+        debug.push(`recipe from comment: food=${recipe.food_name}, ing=${recipe.ingredients?.length}, steps=${recipe.steps?.length}`);
         if (recipe.food_name && isValidRecipe(recipe)) {
           return NextResponse.json({
             video_id: videoId,
             title: videoInfo.title,
             thumbnail: videoInfo.thumbnail,
             recipe,
-            method: source,
+            method: "comment",
             debug,
           });
         }
-        debug.push("recipe validation failed, trying transcript");
+        debug.push("comment recipe validation failed, trying description");
       } catch (e) {
-        debug.push(`summarize error: ${e instanceof Error ? e.message : String(e)}`);
+        debug.push(`comment summarize error: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    // 2. 설명란 시도 (타임스탬프 제거 후)
+    if (cleanDescription.length > 30) {
+      try {
+        const recipe = await summarizeRecipe(cleanDescription, videoInfo.title, "description");
+        debug.push(`recipe from description: food=${recipe.food_name}, ing=${recipe.ingredients?.length}, steps=${recipe.steps?.length}`);
+        if (recipe.food_name && isValidRecipe(recipe)) {
+          return NextResponse.json({
+            video_id: videoId,
+            title: videoInfo.title,
+            thumbnail: videoInfo.thumbnail,
+            recipe,
+            method: "description",
+            debug,
+          });
+        }
+        debug.push("description recipe validation failed, trying transcript");
+      } catch (e) {
+        debug.push(`description summarize error: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 
