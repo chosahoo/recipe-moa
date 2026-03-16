@@ -176,7 +176,7 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.method === "no_recipe") {
-        setError("이 영상은 자막·설명·댓글에 레시피 정보가 없어 추출이 어려워요. 대부분의 유튜브 영상은 추출이 가능하니, 숏츠 대신 일반 유튜브 영상으로 시도해보세요!");
+        setError("이 영상은 설명란·고정댓글에 레시피 정보가 없어 추출이 어려워요. 설명란이나 고정댓글에 재료·레시피가 적힌 영상을 넣어보세요!");
         setLoading(false);
         setLoadingMsg("");
         return;
@@ -237,7 +237,7 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.method === "no_recipe") {
-        setError("이 영상은 자막·설명·댓글에 레시피 정보가 없어 추출이 어려워요. 대부분의 유튜브 영상은 추출이 가능하니, 숏츠 대신 일반 유튜브 영상으로 시도해보세요!");
+        setError("이 영상은 설명란·고정댓글에 레시피 정보가 없어 추출이 어려워요. 설명란이나 고정댓글에 재료·레시피가 적힌 영상을 넣어보세요!");
         // 자막 없는 영상은 기본 정보만 저장
         const basicRecipe = {
           video_id: data.video_id,
@@ -248,7 +248,7 @@ export default function HomePage() {
             category: "기타",
             servings: 1,
             ingredients: [],
-            steps: ["이 영상은 자막·댓글에 레시피 정보가 없어 추출이 어려웠어요. 대부분의 유튜브 영상은 추출이 가능하니, 숏츠 대신 일반 영상으로 시도해보세요!"],
+            steps: ["이 영상은 설명란·고정댓글에 레시피 정보가 없어 추출이 어려웠어요. 영상을 직접 확인해주세요."],
             tips: "",
           },
         };
@@ -679,7 +679,7 @@ export default function HomePage() {
                   )}
                 </button>
               </div>
-              <p className="text-xs text-gray-400 mt-2">유튜브 숏츠보다 영상 입력을 권장드립니다 (일부 숏츠는 추출 불가)</p>
+              <p className="text-xs text-gray-400 mt-2">설명란 또는 고정댓글에 레시피가 적힌 영상에서 추출이 가능해요</p>
             </form>}
 
             {error && (
