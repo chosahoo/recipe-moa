@@ -17,7 +17,7 @@ import AuthButton from "@/components/AuthButton";
 import Image from "next/image";
 import { User, AuthChangeEvent, Session } from "@supabase/supabase-js";
 
-type View = "home" | "extract" | "detail";
+type View = "home" | "extract" | "detail" | "referral";
 type Tab = "all" | "favorites";
 
 const GUEST_TRIED_KEY = "guest_tried";
@@ -519,11 +519,10 @@ export default function HomePage() {
             {view === "home" && (
               <>
                 <button
-                  onClick={copyReferralLink}
+                  onClick={() => setView("referral")}
                   className="text-gray-500 hover:text-orange-500 text-sm font-medium transition-colors cursor-pointer"
-                  title="초대 링크 복사"
                 >
-                  {referralCopied ? "복사됨!" : "친구 초대"}
+                  친구 초대
                 </button>
                 <button
                   onClick={() => { setView("extract"); if (profile) setLimitReached(todayCount >= profile.daily_limit); }}
@@ -539,7 +538,74 @@ export default function HomePage() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 mt-6 overflow-hidden">
-        {view === "detail" && selectedRecipe ? (
+        {view === "referral" ? (
+          <>
+            <button
+              onClick={goHome}
+              className="text-sm text-gray-500 hover:text-gray-700 mb-6 cursor-pointer"
+            >
+              &#8592; 목록으로
+            </button>
+
+            <div className="text-center mb-8">
+              <p className="text-5xl mb-4">&#127873;</p>
+              <h2 className="text-xl font-bold text-gray-800 mb-2">친구 초대하고 추출 횟수 늘리기</h2>
+              <p className="text-gray-500 text-sm">현재 하루 {profile?.daily_limit || 1}회 사용 가능</p>
+            </div>
+
+            <div className="space-y-4 max-w-md mx-auto">
+              {/* 설명 */}
+              <div className="bg-white rounded-xl shadow-sm p-5">
+                <h3 className="font-semibold text-gray-800 mb-3">어떻게 하면 되나요?</h3>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <span className="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold shrink-0">1</span>
+                    <p className="text-sm text-gray-600">아래 초대 링크를 친구에게 공유하세요</p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold shrink-0">2</span>
+                    <p className="text-sm text-gray-600">친구가 링크를 통해 Google 로그인하면 완료!</p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold shrink-0">3</span>
+                    <p className="text-sm text-gray-600">나의 하루 추출 횟수가 <span className="font-bold text-orange-600">5회</span>로 늘어나요</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 초대 링크 */}
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-5 text-center">
+                <p className="text-sm text-gray-600 mb-3">나의 초대 링크</p>
+                <div className="bg-white rounded-lg px-4 py-3 mb-4 text-sm text-gray-700 break-all border border-orange-100">
+                  {profile ? `https://xn--om2b21rhzo.site/?ref=${profile.referral_code}` : "로딩 중..."}
+                </div>
+                <button
+                  onClick={copyReferralLink}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white px-5 py-3 rounded-xl text-sm font-medium transition-colors cursor-pointer"
+                >
+                  {referralCopied ? "복사 완료!" : "초대 링크 복사하기"}
+                </button>
+              </div>
+
+              {/* 카카오톡 공유 */}
+              {typeof navigator !== "undefined" && navigator.share && (
+                <button
+                  onClick={() => {
+                    if (!profile) return;
+                    navigator.share({
+                      title: "레시피모아 - 유튜브 레시피 자동 정리",
+                      text: "유튜브 요리 영상 URL만 넣으면 레시피가 자동 정리돼요!",
+                      url: `https://xn--om2b21rhzo.site/?ref=${profile.referral_code}`,
+                    });
+                  }}
+                  className="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-5 py-3 rounded-xl text-sm font-medium transition-colors cursor-pointer"
+                >
+                  카톡 / SNS로 공유하기
+                </button>
+              )}
+            </div>
+          </>
+        ) : view === "detail" && selectedRecipe ? (
           <div className="flex justify-center">
             <RecipeCard
               recipe={selectedRecipe}
@@ -574,10 +640,10 @@ export default function HomePage() {
                   친구에게 공유하면 하루 5회까지 가능해요!
                 </p>
                 <button
-                  onClick={copyReferralLink}
+                  onClick={() => setView("referral")}
                   className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer"
                 >
-                  {referralCopied ? "복사 완료!" : "초대 링크 복사하기"}
+                  친구 초대하고 횟수 늘리기
                 </button>
               </div>
             )}
