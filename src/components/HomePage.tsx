@@ -871,35 +871,59 @@ export default function HomePage() {
                           </div>
                         </div>
                       </button>
-                      {savedRecipes.some((r) => r.video_id === hr.video_id) ? (
-                        <span className="text-gray-400 px-3 py-1.5 rounded-full text-xs font-medium shrink-0">
-                          담김
-                        </span>
-                      ) : (
-                        <button
-                          onClick={async () => {
-                            if (!user) return;
-                            const recipeData = {
-                              video_id: hr.video_id,
-                              title: hr.title,
-                              thumbnail: hr.thumbnail,
-                              recipe: {
-                                food_name: hr.food_name,
-                                category: hr.category,
-                                servings: hr.servings,
-                                ingredients: hr.ingredients,
-                                steps: hr.steps,
-                                tips: hr.tips,
-                              },
-                            };
-                            await saveRecipe(recipeData, user.id);
-                            await loadRecipes();
-                          }}
-                          className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer shrink-0"
-                        >
-                          담기
-                        </button>
-                      )}
+                      <div className="flex flex-col gap-1 shrink-0">
+                        {savedRecipes.some((r) => r.video_id === hr.video_id) ? (
+                          <span className="text-gray-400 px-3 py-1.5 rounded-full text-xs font-medium">
+                            담김
+                          </span>
+                        ) : (
+                          <button
+                            onClick={async () => {
+                              if (!user) return;
+                              const recipeData = {
+                                video_id: hr.video_id,
+                                title: hr.title,
+                                thumbnail: hr.thumbnail,
+                                recipe: {
+                                  food_name: hr.food_name,
+                                  category: hr.category,
+                                  servings: hr.servings,
+                                  ingredients: hr.ingredients,
+                                  steps: hr.steps,
+                                  tips: hr.tips,
+                                },
+                              };
+                              await saveRecipe(recipeData, user.id);
+                              await loadRecipes();
+                            }}
+                            className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer"
+                          >
+                            담기
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm(`"${hr.food_name}" 핫 레시피를 삭제할까요?`)) return;
+                              const res = await fetch("/api/admin/hot-delete", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ admin_email: user?.email, video_id: hr.video_id }),
+                              });
+                              const data = await res.json();
+                              if (data.ok) {
+                                setHotRecipes((prev) => prev.filter((r) => r.video_id !== hr.video_id));
+                              } else {
+                                alert(data.error || "삭제 실패");
+                              }
+                            }}
+                            className="text-red-400 hover:text-red-600 px-3 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer"
+                          >
+                            삭제
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

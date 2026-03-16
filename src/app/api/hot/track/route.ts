@@ -20,6 +20,11 @@ async function ensureAnonymousUser(supabase: any) {
         email_confirm: true,
       });
     }
+    // user_profiles에도 익명 유저 프로필 보장
+    await supabase.from("user_profiles").upsert(
+      { user_id: ANONYMOUS_USER_ID, daily_limit: 9999 },
+      { onConflict: "user_id" }
+    );
     anonymousUserEnsured = true;
   } catch {
     // 이미 존재하면 무시
