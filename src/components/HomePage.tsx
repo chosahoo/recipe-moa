@@ -88,7 +88,7 @@ export default function HomePage() {
       setTodayCount(count);
       setLimitReached(count >= p.daily_limit);
     } catch {
-      loadRecipes();
+      try { await loadRecipes(); } catch { /* ignore */ }
     } finally {
       setDataLoading(false);
     }
