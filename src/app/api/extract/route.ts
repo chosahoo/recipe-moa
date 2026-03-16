@@ -193,14 +193,23 @@ ${text.slice(0, 8000)}`;
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     max_tokens: 2048,
-    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: "You always respond with valid JSON." },
+      { role: "user", content: prompt },
+    ],
   });
 
   const responseText = response.choices[0].message.content?.trim() || "";
-  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("AI 응답을 파싱할 수 없습니다.");
-
-  const data = JSON.parse(jsonMatch[0]);
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    // JSON 모드 실패 시 regex 파싱 시도
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("AI 응답을 파싱할 수 없습니다.");
+    data = JSON.parse(jsonMatch[0]);
+  }
 
   if (typeof data.steps === "string") {
     data.steps = data.steps
