@@ -974,8 +974,8 @@ export default function HomePage() {
                       onClick={() => {
                         if (!profile) return;
                         navigator.share({
-                          title: "레시피모아",
-                          text: "유튜브에서 본 요리 영상, 링크만 넣으면 재료·조리순서가 자동으로 정리돼! 카톡에 쌓인 레시피 링크 정리할 때 진짜 좋아",
+                          title: "레시피모아 - 유튜브 레시피 자동 정리",
+                          text: `유튜브 요리 영상 링크만 넣으면 재료·조리순서를 AI가 깔끔하게 정리해줘!\n레시피모아에서 바로 확인해봐`,
                           url: `https://xn--om2b21rhzo.site/?ref=${profile.referral_code}`,
                         });
                       }}
@@ -1167,10 +1167,16 @@ export default function HomePage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          const text = `${r.recipe.food_name} 레시피\n\n재료: ${r.recipe.ingredients.join(", ")}\n\n조리 순서:\n${r.recipe.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}${r.recipe.tips ? `\n\n팁: ${r.recipe.tips}` : ""}`;
+                          const parts = [
+                            `[${r.recipe.food_name}] 레시피`,
+                            `재료: ${r.recipe.ingredients.join(", ")}`,
+                            `조리 순서:\n${r.recipe.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`,
+                          ];
+                          if (r.recipe.tips) parts.push(`팁: ${r.recipe.tips}`);
+                          const text = parts.join("\n\n");
                           const videoUrl = `https://www.youtube.com/watch?v=${r.video_id}`;
                           if (navigator.share) {
-                            navigator.share({ title: r.recipe.food_name, text, url: videoUrl });
+                            navigator.share({ title: `${r.recipe.food_name} 레시피`, text, url: videoUrl });
                           } else {
                             navigator.clipboard.writeText(`${text}\n\n영상: ${videoUrl}`);
                             alert("레시피가 클립보드에 복사되었습니다!");
