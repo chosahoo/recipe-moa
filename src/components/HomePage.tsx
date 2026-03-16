@@ -381,12 +381,31 @@ export default function HomePage() {
       <main className="min-h-screen pb-20">
         <header className="bg-white shadow-sm sticky top-0 z-10">
           <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-            <button onClick={() => { setGuestRecipe(null); setGuestTried(false); setError(""); setUrl(""); localStorage.removeItem(GUEST_TRIED_KEY); }} className="text-xl font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors">레시피모아</button>
+            <button onClick={() => { setGuestRecipe(null); setGuestTried(false); setError(""); setUrl(""); localStorage.removeItem(GUEST_TRIED_KEY); }} className="text-xl font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors">&#x1F468;&#x200D;&#x1F373; 레시피모아</button>
             <AuthButton user={null} onAuthChange={refreshAuth} />
           </div>
         </header>
 
         <div className="max-w-3xl mx-auto px-4 mt-8">
+          {/* 비회원 상세보기 */}
+          {view === "detail" && selectedRecipe ? (
+            <div className="flex flex-col items-center">
+              <RecipeCard
+                recipe={selectedRecipe}
+                onBack={() => { setView("home"); setSelectedRecipe(null); }}
+              />
+              <div className="mt-6 bg-orange-50 border border-orange-200 rounded-xl p-6 text-center max-w-2xl w-full">
+                <p className="text-gray-800 font-semibold mb-2">
+                  로그인하시면 나만의 레시피들을 이렇게 정리할 수 있어요
+                </p>
+                <p className="text-sm text-gray-500 mb-4">
+                  인분 계산, 즐겨찾기, 카톡 공유까지 한번에!
+                </p>
+                <AuthButton user={null} onAuthChange={refreshAuth} />
+              </div>
+            </div>
+          ) : (
+          <>
           {/* 히어로 */}
           <div className="text-center mb-10">
             <p className="text-5xl mb-4">&#127859;</p>
@@ -494,8 +513,19 @@ export default function HomePage() {
           {/* 체험 결과 - 리스트 형태 */}
           {guestRecipe && (
             <div className="max-w-2xl mx-auto">
-              {/* 리스트 아이템 (로그인 유저와 동일한 형태) */}
-              <div className="bg-white rounded-xl shadow-sm p-3 flex gap-4 items-center overflow-hidden mb-4">
+              {/* 리스트 아이템 - 클릭하면 상세보기 */}
+              <button
+                onClick={() => {
+                  setSelectedRecipe({
+                    ...guestRecipe,
+                    saved_at: "",
+                    checked_steps: new Array(guestRecipe.recipe.steps.length).fill(false),
+                    is_favorite: false,
+                  });
+                  setView("detail");
+                }}
+                className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 flex gap-4 items-center overflow-hidden mb-4 w-full text-left cursor-pointer"
+              >
                 <Image
                   src={guestRecipe.thumbnail}
                   alt={guestRecipe.recipe.food_name}
@@ -519,7 +549,7 @@ export default function HomePage() {
                     </span>
                   </div>
                 </div>
-              </div>
+              </button>
 
               {/* 로그인 유도 */}
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-6 text-center">
@@ -532,6 +562,8 @@ export default function HomePage() {
                 <AuthButton user={null} onAuthChange={refreshAuth} />
               </div>
             </div>
+          )}
+          </>
           )}
         </div>
       </main>
@@ -547,7 +579,7 @@ export default function HomePage() {
             onClick={goHome}
             className="text-xl font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors"
           >
-            레시피모아
+            &#x1F468;&#x200D;&#x1F373; 레시피모아
           </button>
           <div className="flex items-center gap-3">
             {view === "home" && (
@@ -672,34 +704,35 @@ export default function HomePage() {
                           </div>
                         </div>
                       </button>
-                      <button
-                        onClick={async () => {
-                          if (!user) return;
-                          const recipeData = {
-                            video_id: hr.video_id,
-                            title: hr.title,
-                            thumbnail: hr.thumbnail,
-                            recipe: {
-                              food_name: hr.food_name,
-                              category: hr.category,
-                              servings: hr.servings,
-                              ingredients: hr.ingredients,
-                              steps: hr.steps,
-                              tips: hr.tips,
-                            },
-                          };
-                          try {
+                      {savedRecipes.some((r) => r.video_id === hr.video_id) ? (
+                        <span className="text-gray-400 px-3 py-1.5 rounded-full text-xs font-medium shrink-0">
+                          담김
+                        </span>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            if (!user) return;
+                            const recipeData = {
+                              video_id: hr.video_id,
+                              title: hr.title,
+                              thumbnail: hr.thumbnail,
+                              recipe: {
+                                food_name: hr.food_name,
+                                category: hr.category,
+                                servings: hr.servings,
+                                ingredients: hr.ingredients,
+                                steps: hr.steps,
+                                tips: hr.tips,
+                              },
+                            };
                             await saveRecipe(recipeData, user.id);
                             await loadRecipes();
-                            goHome();
-                          } catch {
-                            alert("이미 저장된 레시피예요!");
-                          }
-                        }}
-                        className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer shrink-0"
-                      >
-                        담기
-                      </button>
+                          }}
+                          className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer shrink-0"
+                        >
+                          담기
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -4,8 +4,28 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\s/g, "") || "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/\s/g, "") || "";
 
-// 비회원 추출도 핫 레시피에 반영하기 위한 익명 유저 ID
 const ANONYMOUS_USER_ID = "00000000-0000-0000-0000-000000000000";
+let anonymousUserEnsured = false;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function ensureAnonymousUser(supabase: any) {
+  if (anonymousUserEnsured) return;
+  try {
+    // 익명 유저가 없으면 생성
+    const { data } = await supabase.auth.admin.getUserById(ANONYMOUS_USER_ID);
+    if (!data?.user) {
+      await supabase.auth.admin.createUser({
+        id: ANONYMOUS_USER_ID,
+        email: "anonymous@recipemoa.internal",
+        email_confirm: true,
+      });
+    }
+    anonymousUserEnsured = true;
+  } catch {
+    // 이미 존재하면 무시
+    anonymousUserEnsured = true;
+  }
+}
 
 export async function POST(req: NextRequest) {
   if (!serviceRoleKey) {
@@ -22,7 +42,9 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    await supabase.from("recipes").upsert(
+    await ensureAnonymousUser(supabase);
+
+    const { error } = await supabase.from("recipes").upsert(
       {
         user_id: ANONYMOUS_USER_ID,
         video_id,
@@ -40,8 +62,8 @@ export async function POST(req: NextRequest) {
       { onConflict: "user_id,video_id" }
     );
 
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false });
+    return NextResponse.json({ ok: !error, error: error?.message });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) });
   }
 }
