@@ -17,7 +17,8 @@ import AuthButton from "@/components/AuthButton";
 import Image from "next/image";
 import { User, AuthChangeEvent, Session } from "@supabase/supabase-js";
 
-type View = "home" | "extract" | "detail" | "hot";
+type View = "home" | "extract" | "detail" | "hot" | "admin";
+const ADMIN_EMAIL = "sahoo860420@gmail.com";
 type Tab = "all" | "favorites";
 
 interface HotRecipe {
@@ -61,6 +62,13 @@ export default function HomePage() {
   const [hotRecipes, setHotRecipes] = useState<HotRecipe[]>([]);
   const [hotLoading, setHotLoading] = useState(false);
   const [hotCategory, setHotCategory] = useState("전체");
+  // 어드민
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [adminStats, setAdminStats] = useState<any>(null);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [unlockEmail, setUnlockEmail] = useState("");
+  const [unlockLimit, setUnlockLimit] = useState("999");
+  const [unlockMsg, setUnlockMsg] = useState("");
 
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
@@ -367,6 +375,46 @@ export default function HomePage() {
     }
   }, []);
 
+  const isAdmin = user?.email === ADMIN_EMAIL;
+
+  const loadAdminStats = useCallback(async () => {
+    if (!user?.email) return;
+    setAdminLoading(true);
+    try {
+      const res = await fetch(`/api/admin/stats?email=${encodeURIComponent(user.email)}`);
+      const data = await res.json();
+      setAdminStats(data);
+    } catch {
+      setAdminStats(null);
+    } finally {
+      setAdminLoading(false);
+    }
+  }, [user?.email]);
+
+  const handleUnlock = async () => {
+    if (!user?.email || !unlockEmail) return;
+    setUnlockMsg("");
+    try {
+      const res = await fetch("/api/admin/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          admin_email: user.email,
+          target_email: unlockEmail,
+          daily_limit: parseInt(unlockLimit) || 999,
+        }),
+      });
+      const data = await res.json();
+      setUnlockMsg(data.message || data.error || "완료");
+      if (data.ok) {
+        setUnlockEmail("");
+        loadAdminStats();
+      }
+    } catch {
+      setUnlockMsg("요청 실패");
+    }
+  };
+
   const filteredRecipes = savedRecipes
     .filter((r) => tab === "favorites" ? r.is_favorite : true)
     .filter((r) => selectedCategory === "전체" ? true : r.recipe.category === selectedCategory);
@@ -588,6 +636,14 @@ export default function HomePage() {
           <div className="flex items-center gap-3">
             {view === "home" && (
               <>
+                {isAdmin && (
+                  <button
+                    onClick={() => { setView("admin"); loadAdminStats(); }}
+                    className="text-gray-400 hover:text-red-500 text-sm font-medium transition-colors cursor-pointer"
+                  >
+                    관리
+                  </button>
+                )}
                 <button
                   onClick={() => { setView("hot"); loadHotRecipes(); }}
                   className="text-gray-500 hover:text-orange-500 text-sm font-medium transition-colors cursor-pointer"
@@ -607,7 +663,114 @@ export default function HomePage() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 mt-6 overflow-hidden">
-        {view === "hot" ? (
+        {view === "admin" && isAdmin ? (
+          <>
+            <button
+              onClick={goHome}
+              className="text-sm text-gray-500 hover:text-gray-700 mb-6 cursor-pointer"
+            >
+              &#8592; 목록으로
+            </button>
+
+            <h2 className="text-xl font-bold text-gray-800 mb-6">관리자 대시보드</h2>
+
+            {adminLoading ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full mb-3" />
+              </div>
+            ) : adminStats ? (
+              <div className="space-y-6">
+                {/* 전체 통계 */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white rounded-xl shadow-sm p-4 text-center">
+                    <p className="text-2xl font-bold text-orange-600">{adminStats.total_extractions}</p>
+                    <p className="text-xs text-gray-500 mt-1">전체 추출</p>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm p-4 text-center">
+                    <p className="text-2xl font-bold text-blue-600">{adminStats.today_extractions}</p>
+                    <p className="text-xs text-gray-500 mt-1">오늘 추출</p>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm p-4 text-center">
+                    <p className="text-2xl font-bold text-green-600">{adminStats.total_users}</p>
+                    <p className="text-xs text-gray-500 mt-1">전체 유저</p>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm p-4 text-center">
+                    <p className="text-2xl font-bold text-purple-600">{adminStats.total_recipes}</p>
+                    <p className="text-xs text-gray-500 mt-1">저장된 레시피</p>
+                  </div>
+                </div>
+
+                {/* 비용 */}
+                <div className="bg-white rounded-xl shadow-sm p-4">
+                  <h3 className="font-semibold text-gray-800 mb-2">예상 API 비용</h3>
+                  <p className="text-sm text-gray-600">
+                    ${adminStats.estimated_cost_usd} USD (약 {adminStats.estimated_cost_krw}원)
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">GPT-4o-mini 기준, 추출 1회당 약 $0.0003</p>
+                </div>
+
+                {/* 상위 유저 */}
+                <div className="bg-white rounded-xl shadow-sm p-4">
+                  <h3 className="font-semibold text-gray-800 mb-3">추출 상위 유저</h3>
+                  <div className="space-y-2">
+                    {adminStats.top_users?.map((u: { user_id: string; email: string; name: string; extraction_count: number; daily_limit: number }, i: number) => (
+                      <div key={u.user_id} className="flex items-center justify-between text-sm border-b border-gray-50 pb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-orange-500 font-bold w-5">{i + 1}</span>
+                          <div className="min-w-0">
+                            <p className="truncate text-gray-800">{u.name || u.email}</p>
+                            <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 ml-2">
+                          <p className="font-semibold text-gray-800">{u.extraction_count}회</p>
+                          <p className="text-xs text-gray-400">제한: {u.daily_limit}/일</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 제한 해제 */}
+                <div className="bg-white rounded-xl shadow-sm p-4">
+                  <h3 className="font-semibold text-gray-800 mb-3">유저 추출 제한 변경</h3>
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="email"
+                      value={unlockEmail}
+                      onChange={(e) => setUnlockEmail(e.target.value)}
+                      placeholder="구글 이메일 입력"
+                      className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-900 placeholder-gray-400"
+                    />
+                    <div className="flex gap-2">
+                      <select
+                        value={unlockLimit}
+                        onChange={(e) => setUnlockLimit(e.target.value)}
+                        className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-900 flex-1"
+                      >
+                        <option value="3">3회/일 (기본)</option>
+                        <option value="10">10회/일</option>
+                        <option value="50">50회/일</option>
+                        <option value="999">무제한</option>
+                      </select>
+                      <button
+                        onClick={handleUnlock}
+                        className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors"
+                      >
+                        변경
+                      </button>
+                    </div>
+                    {unlockMsg && (
+                      <p className="text-sm text-green-600">{unlockMsg}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-8">데이터를 불러올 수 없습니다</p>
+            )}
+          </>
+        ) : view === "hot" ? (
           <>
             <button
               onClick={goHome}
