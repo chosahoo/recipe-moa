@@ -140,43 +140,67 @@ export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack 
               기준: {baseServings}인분
             </p>
           )}
-          <div className="flex flex-wrap gap-2">
-            {recipe.recipe.ingredients.map((ing, i) => (
-              <span
-                key={i}
-                className="bg-orange-50 text-orange-800 px-3 py-1 rounded-full text-sm"
-              >
-                {adjustIngredient(ing, ratio)}
-              </span>
-            ))}
-          </div>
+          {recipe.recipe.ingredients.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {recipe.recipe.ingredients.map((ing, i) => (
+                <span
+                  key={i}
+                  className="bg-orange-50 text-orange-800 px-3 py-1 rounded-full text-sm"
+                >
+                  {adjustIngredient(ing, ratio)}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+              <p className="text-sm text-gray-500">
+                유튜브 설명이나 댓글에 재료 정보가 없어서 AI가 담지 못했어요. 영상을 참고해주세요.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mb-5">
           <h3 className="text-lg font-semibold text-orange-600 mb-2">
             조리 순서
           </h3>
-          <ol className="space-y-2">
-            {recipe.recipe.steps.map((step, i) => (
-              <li key={i} className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={checkedSteps[i] || false}
-                  onChange={() => toggleStep(i)}
-                  className="mt-1 w-5 h-5 rounded accent-orange-500 shrink-0 cursor-pointer"
-                />
-                <span
-                  className={`text-sm leading-relaxed ${checkedSteps[i] ? "line-through text-gray-400" : "text-gray-700"}`}
-                >
-                  <span className="font-semibold text-gray-900">
-                    {i + 1}.
-                  </span>{" "}
-                  {step}
-                </span>
-              </li>
-            ))}
-          </ol>
+          {recipe.recipe.steps.length > 0 ? (
+            <ol className="space-y-2">
+              {recipe.recipe.steps.map((step, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={checkedSteps[i] || false}
+                    onChange={() => toggleStep(i)}
+                    className="mt-1 w-5 h-5 rounded accent-orange-500 shrink-0 cursor-pointer"
+                  />
+                  <span
+                    className={`text-sm leading-relaxed ${checkedSteps[i] ? "line-through text-gray-400" : "text-gray-700"}`}
+                  >
+                    <span className="font-semibold text-gray-900">
+                      {i + 1}.
+                    </span>{" "}
+                    {step}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+              <p className="text-sm text-gray-500">
+                유튜브 설명이나 댓글에 조리 순서가 없어서 AI가 담지 못했어요. 영상을 참고해주세요.
+              </p>
+            </div>
+          )}
         </div>
+
+        {recipe.recipe.ingredients.length === 0 && recipe.recipe.steps.length === 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+            <p className="text-sm text-amber-700">
+              이 영상은 설명란·댓글에 레시피 정보가 없어서 AI가 재료와 조리 순서를 담지 못했어요. 원본 영상을 직접 확인해주세요.
+            </p>
+          </div>
+        )}
 
         {recipe.recipe.tips && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
