@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\s/g, "") || "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/\s/g, "") || "";
 
-const ANONYMOUS_USER_ID = "00000000-0000-0000-0000-000000000000";
+const ANONYMOUS_USER_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 let anonymousUserEnsured = false;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

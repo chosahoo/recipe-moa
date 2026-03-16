@@ -79,11 +79,15 @@ export default function HomePage() {
   const loadUserData = useCallback(async (userId: string) => {
     setDataLoading(true);
     try {
-      const [, p, count] = await Promise.all([
-        loadRecipes(),
-        getOrCreateProfile(userId),
-        getTodayExtractionCount(userId),
-      ]);
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000));
+      const [, p, count] = await Promise.race([
+        Promise.all([
+          loadRecipes(),
+          getOrCreateProfile(userId),
+          getTodayExtractionCount(userId),
+        ]),
+        timeout,
+      ]) as [void, ReturnType<typeof getOrCreateProfile> extends Promise<infer T> ? T : never, number];
       setProfile(p);
       setTodayCount(count);
       setLimitReached(count >= p.daily_limit);

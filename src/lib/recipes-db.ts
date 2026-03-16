@@ -130,7 +130,17 @@ export async function getOrCreateProfile(userId: string): Promise<UserProfile> {
     .eq("user_id", userId)
     .single();
 
-  if (data) return data as UserProfile;
+  if (data) {
+    // 기존 유저 daily_limit이 3 미만이면 3으로 업그레이드
+    if (data.daily_limit < 3) {
+      await supabase
+        .from("user_profiles")
+        .update({ daily_limit: 3 })
+        .eq("user_id", userId);
+      data.daily_limit = 3;
+    }
+    return data as UserProfile;
+  }
 
   // Profile doesn't exist, create one
   if (error && error.code === "PGRST116") {
