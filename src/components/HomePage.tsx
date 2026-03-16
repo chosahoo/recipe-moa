@@ -499,6 +499,13 @@ export default function HomePage() {
                       </button>
                     ))}
                   </div>
+                  {!user && (
+                    <div className="mb-4 overflow-hidden rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2.5">
+                      <p className="text-white text-sm font-medium whitespace-nowrap animate-marquee">
+                        &#x1F512; 로그인하면 핫레시피를 내 목록에 저장할 수 있어요! &nbsp;&nbsp;&nbsp; &#x1F512; 로그인하면 핫레시피를 내 목록에 저장할 수 있어요!
+                      </p>
+                    </div>
+                  )}
                   <div className="space-y-3">
                     {hotRecipes
                       .filter((r) => hotCategory === "전체" || r.category === hotCategory)
