@@ -65,6 +65,7 @@ export default function HomePage() {
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
   const authInitialized = useRef(false);
+  const prevView = useRef<View>("home");
 
   const loadRecipes = useCallback(async () => {
     try {
@@ -194,7 +195,7 @@ export default function HomePage() {
 
       if (data.method === "no_recipe") {
         // 기본 정보로 결과 표시
-        setGuestRecipe({
+        const guestData = {
           video_id: data.video_id,
           title: data.title,
           thumbnail: data.thumbnail,
@@ -206,7 +207,10 @@ export default function HomePage() {
             steps: ["설명란·고정댓글에 레시피 정보가 없어 추출이 어려웠어요. 영상을 직접 확인해주세요."],
             tips: "",
           },
-        });
+        };
+        setGuestRecipe(guestData);
+        // 핫 레시피용 기록
+        fetch("/api/hot/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(guestData) }).catch(() => {});
         setGuestTried(true);
         localStorage.setItem(GUEST_TRIED_KEY, "true");
         setUrl("");
@@ -216,6 +220,8 @@ export default function HomePage() {
       }
 
       setGuestRecipe(data);
+      // 핫 레시피용 기록
+      fetch("/api/hot/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).catch(() => {});
       setGuestTried(true);
       localStorage.setItem(GUEST_TRIED_KEY, "true");
       setUrl("");
@@ -577,6 +583,7 @@ export default function HomePage() {
             <div className="text-center mb-6">
               <h2 className="text-xl font-bold text-gray-800 mb-1">핫 레시피</h2>
               <p className="text-gray-500 text-sm">사람들이 많이 저장한 인기 레시피</p>
+              <p className="text-xs text-orange-500 mt-1">레시피 담기는 횟수 제한 없이 자유롭게!</p>
             </div>
 
             {hotLoading ? (
@@ -617,11 +624,29 @@ export default function HomePage() {
                       className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 flex gap-3 items-center overflow-hidden"
                     >
                       <span className="text-lg font-bold text-orange-500 w-6 text-center shrink-0">{idx + 1}</span>
-                      <a
-                        href={`https://www.youtube.com/watch?v=${hr.video_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex gap-3 items-center flex-1 min-w-0"
+                      <button
+                        onClick={() => {
+                          const asSaved: SavedRecipe = {
+                            video_id: hr.video_id,
+                            title: hr.title,
+                            thumbnail: hr.thumbnail,
+                            recipe: {
+                              food_name: hr.food_name,
+                              category: hr.category,
+                              servings: hr.servings,
+                              ingredients: hr.ingredients,
+                              steps: hr.steps,
+                              tips: hr.tips,
+                            },
+                            saved_at: "",
+                            checked_steps: new Array(hr.steps.length).fill(false),
+                            is_favorite: false,
+                          };
+                          setSelectedRecipe(asSaved);
+                          prevView.current = "hot";
+                          setView("detail");
+                        }}
+                        className="flex gap-3 items-center flex-1 min-w-0 text-left cursor-pointer"
                       >
                         <Image
                           src={hr.thumbnail}
@@ -646,7 +671,7 @@ export default function HomePage() {
                             </span>
                           </div>
                         </div>
-                      </a>
+                      </button>
                       <button
                         onClick={async () => {
                           if (!user) return;
@@ -904,6 +929,7 @@ export default function HomePage() {
                     <button
                       onClick={() => {
                         setSelectedRecipe(r);
+                        prevView.current = "home";
                         setView("detail");
                       }}
                       className="flex gap-4 items-center text-left cursor-pointer flex-1 min-w-0"
