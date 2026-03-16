@@ -92,6 +92,10 @@ export default function HomePage() {
   }, [supabase.auth, loadUserData]);
 
   useEffect(() => {
+    // ref 파라미터 localStorage에 저장 (OAuth 리다이렉트 전에)
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (ref) localStorage.setItem("pending_referral", ref);
+
     // 1. 즉시 세션 확인 → 데이터 로드 (가장 빠른 경로)
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -112,11 +116,12 @@ export default function HomePage() {
       if (session?.user && !authInitialized.current) {
         authInitialized.current = true;
         await loadUserData(session.user.id);
-        // 리퍼럴 코드 적용
+        // 리퍼럴 코드 적용 (URL 또는 localStorage에서)
         const searchParams = new URLSearchParams(window.location.search);
-        const refCode = searchParams.get("ref");
+        const refCode = searchParams.get("ref") || localStorage.getItem("pending_referral");
         if (refCode) {
           try { await applyReferral(refCode, session.user.id); } catch { /* 무시 */ }
+          localStorage.removeItem("pending_referral");
           searchParams.delete("ref");
           const newSearch = searchParams.toString();
           window.history.replaceState(null, "", window.location.pathname + (newSearch ? `?${newSearch}` : ""));

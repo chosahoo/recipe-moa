@@ -37,6 +37,12 @@ export default function AuthButton({ user, onAuthChange }: Props) {
   const redirectTo = typeof window !== "undefined" ? window.location.origin : "https://www.xn--om2b21rhzo.site";
   const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
 
+  // ref 파라미터가 있으면 localStorage에 저장 (OAuth 리다이렉트 후에도 유지)
+  if (typeof window !== "undefined") {
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (ref) localStorage.setItem("pending_referral", ref);
+  }
+
   return (
     <a
       href={authUrl}
