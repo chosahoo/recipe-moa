@@ -176,10 +176,23 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.method === "no_recipe") {
+        // 기본 정보로 결과 표시
+        setGuestRecipe({
+          video_id: data.video_id,
+          title: data.title,
+          thumbnail: data.thumbnail,
+          recipe: {
+            food_name: data.title,
+            category: "기타",
+            servings: 1,
+            ingredients: [],
+            steps: ["설명란·고정댓글에 레시피 정보가 없어 추출이 어려웠어요. 영상을 직접 확인해주세요."],
+            tips: "",
+          },
+          method: "no_recipe",
+        });
         setGuestTried(true);
         localStorage.setItem(GUEST_TRIED_KEY, "true");
-        setGuestRecipe(null);
-        setError("이 영상은 설명란·고정댓글에 레시피 정보가 없어 추출이 어려웠어요. 설명란이나 고정댓글에 재료·레시피가 적힌 영상을 넣어보세요!");
         setUrl("");
         setLoading(false);
         setLoadingMsg("");
@@ -241,11 +254,26 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.method === "no_recipe") {
+        // 영상 기본 정보만 리스트에 저장
+        const basicRecipe = {
+          video_id: data.video_id,
+          title: data.title,
+          thumbnail: data.thumbnail,
+          recipe: {
+            food_name: data.title,
+            category: "기타" as const,
+            servings: 1,
+            ingredients: [],
+            steps: ["설명란·고정댓글에 레시피 정보가 없어 추출이 어려웠어요. 영상을 직접 확인해주세요."],
+            tips: "",
+          },
+        };
+        await saveRecipe(basicRecipe, user.id);
+        await loadRecipes();
         setUrl("");
         setLoading(false);
         setLoadingMsg("");
         setError("이 영상은 설명란·고정댓글에 레시피 정보가 없어 추출이 어려웠어요. 설명란이나 고정댓글에 재료·레시피가 적힌 영상을 넣어보세요!");
-        // 바로 리스트로 이동, 3초 후 에러 메시지 제거
         setView("home");
         setTimeout(() => setError(""), 4000);
         return;
