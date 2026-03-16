@@ -62,6 +62,12 @@ export async function POST(req: NextRequest) {
       { onConflict: "user_id,video_id" }
     );
 
+    // 비회원 추출도 extraction_log에 기록 (비용 통계에 포함)
+    await supabase.from("extraction_log").insert({
+      user_id: ANONYMOUS_USER_ID,
+      video_id,
+    });
+
     return NextResponse.json({ ok: !error, error: error?.message });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) });
