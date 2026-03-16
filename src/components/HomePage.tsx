@@ -176,7 +176,11 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.method === "no_recipe") {
-        setError("이 영상은 설명란·고정댓글에 레시피 정보가 없어 추출이 어려워요. 설명란이나 고정댓글에 재료·레시피가 적힌 영상을 넣어보세요!");
+        setGuestTried(true);
+        localStorage.setItem(GUEST_TRIED_KEY, "true");
+        setGuestRecipe(null);
+        setError("이 영상은 설명란·고정댓글에 레시피 정보가 없어 추출이 어려웠어요. 설명란이나 고정댓글에 재료·레시피가 적힌 영상을 넣어보세요!");
+        setUrl("");
         setLoading(false);
         setLoadingMsg("");
         return;
@@ -404,16 +408,21 @@ export default function HomePage() {
               )}
             </>
           ) : !guestRecipe ? (
-            /* 이미 1회 체험했고, 결과가 없는 상태 (새로고침 후) */
+            /* 체험 끝 or 추출 실패 */
             <div className="text-center py-8">
+              {error && (
+                <div className="bg-orange-50 border border-orange-200 text-orange-700 px-4 py-3 rounded-xl mb-6 text-sm max-w-lg mx-auto">
+                  {error}
+                </div>
+              )}
               <p className="text-lg font-semibold text-gray-700 mb-2">
-                무료 체험이 끝났어요!
+                {error ? "다른 영상으로 시도해보세요!" : "무료 체험이 끝났어요!"}
               </p>
               <p className="text-gray-500 mb-1">
-                비로그인 상태에서는 1회만 추출할 수 있어요.
+                로그인하면 추출한 레시피를 리스트로 저장하고 관리할 수 있어요.
               </p>
               <p className="text-gray-500 mb-6">
-                로그인하면 매일 레시피를 추출하고, 저장 및 인분 계산도 가능해요!
+                인분 계산, 즐겨찾기, 카톡 공유까지 한번에!
               </p>
               <AuthButton user={null} onAuthChange={refreshAuth} />
             </div>
