@@ -26,8 +26,10 @@ interface HotRecipe {
   thumbnail: string;
   food_name: string;
   category: string;
-  ingredient_count: number;
-  step_count: number;
+  servings: number;
+  ingredients: string[];
+  steps: string[];
+  tips: string;
   save_count: number;
 }
 
@@ -58,6 +60,7 @@ export default function HomePage() {
   // 핫 레시피
   const [hotRecipes, setHotRecipes] = useState<HotRecipe[]>([]);
   const [hotLoading, setHotLoading] = useState(false);
+  const [hotCategory, setHotCategory] = useState("전체");
 
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
@@ -587,42 +590,95 @@ export default function HomePage() {
                 <p className="text-lg">아직 인기 레시피가 없어요</p>
               </div>
             ) : (
-              <div className="grid gap-3">
-                {hotRecipes.map((hr, idx) => (
-                  <a
-                    key={hr.video_id}
-                    href={`https://www.youtube.com/watch?v=${hr.video_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 flex gap-4 items-center overflow-hidden"
-                  >
-                    <span className="text-lg font-bold text-orange-500 w-6 text-center shrink-0">{idx + 1}</span>
-                    <Image
-                      src={hr.thumbnail}
-                      alt={hr.food_name}
-                      width={120}
-                      height={68}
-                      className="rounded-lg object-cover w-24 h-16 sm:w-28 sm:h-18 shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-semibold text-gray-900 truncate">
-                        {hr.food_name}
-                      </h3>
-                      <p className="text-xs text-gray-400 truncate mt-0.5">
-                        {hr.title}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
-                          {hr.category}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {hr.save_count}명 저장
-                        </span>
-                      </div>
+              <>
+                {/* 카테고리 필터 */}
+                <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
+                  {["전체", ...new Set(hotRecipes.map((r) => r.category))].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setHotCategory(cat)}
+                      className={`px-3 py-1 rounded-full text-sm whitespace-nowrap transition-colors cursor-pointer ${
+                        hotCategory === cat
+                          ? "bg-orange-500 text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid gap-3">
+                  {hotRecipes
+                    .filter((hr) => hotCategory === "전체" || hr.category === hotCategory)
+                    .map((hr, idx) => (
+                    <div
+                      key={hr.video_id}
+                      className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 flex gap-3 items-center overflow-hidden"
+                    >
+                      <span className="text-lg font-bold text-orange-500 w-6 text-center shrink-0">{idx + 1}</span>
+                      <a
+                        href={`https://www.youtube.com/watch?v=${hr.video_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex gap-3 items-center flex-1 min-w-0"
+                      >
+                        <Image
+                          src={hr.thumbnail}
+                          alt={hr.food_name}
+                          width={120}
+                          height={68}
+                          className="rounded-lg object-cover w-24 h-16 sm:w-28 sm:h-18 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-gray-900 truncate">
+                            {hr.food_name}
+                          </h3>
+                          <p className="text-xs text-gray-400 truncate mt-0.5">
+                            {hr.title}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                              {hr.category}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {hr.save_count}명 저장
+                            </span>
+                          </div>
+                        </div>
+                      </a>
+                      <button
+                        onClick={async () => {
+                          if (!user) return;
+                          const recipeData = {
+                            video_id: hr.video_id,
+                            title: hr.title,
+                            thumbnail: hr.thumbnail,
+                            recipe: {
+                              food_name: hr.food_name,
+                              category: hr.category,
+                              servings: hr.servings,
+                              ingredients: hr.ingredients,
+                              steps: hr.steps,
+                              tips: hr.tips,
+                            },
+                          };
+                          try {
+                            await saveRecipe(recipeData, user.id);
+                            await loadRecipes();
+                            goHome();
+                          } catch {
+                            alert("이미 저장된 레시피예요!");
+                          }
+                        }}
+                        className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer shrink-0"
+                      >
+                        담기
+                      </button>
                     </div>
-                  </a>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
           </>
         ) : view === "detail" && selectedRecipe ? (

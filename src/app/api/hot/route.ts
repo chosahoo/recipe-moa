@@ -12,10 +12,9 @@ export async function GET() {
   try {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // 최근 레시피 중 여러 유저가 저장한 인기 레시피
     const { data, error } = await supabase
       .from("recipes")
-      .select("video_id, title, thumbnail, food_name, category, ingredients, steps");
+      .select("video_id, title, thumbnail, food_name, category, servings, ingredients, steps, tips");
 
     if (error || !data) {
       return NextResponse.json({ recipes: [] });
@@ -32,10 +31,10 @@ export async function GET() {
       }
     }
 
-    // 카운트 순 정렬, 상위 10개
+    // 카운트 순 정렬, 상위 20개
     const sorted = [...countMap.values()]
       .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
+      .slice(0, 20);
 
     const recipes = sorted.map((item) => ({
       video_id: item.recipe.video_id,
@@ -43,8 +42,10 @@ export async function GET() {
       thumbnail: item.recipe.thumbnail,
       food_name: item.recipe.food_name,
       category: item.recipe.category || "기타",
-      ingredient_count: item.recipe.ingredients?.length || 0,
-      step_count: item.recipe.steps?.length || 0,
+      servings: item.recipe.servings ?? 1,
+      ingredients: item.recipe.ingredients || [],
+      steps: item.recipe.steps || [],
+      tips: item.recipe.tips || "",
       save_count: item.count,
     }));
 
