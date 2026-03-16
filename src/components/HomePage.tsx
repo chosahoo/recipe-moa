@@ -597,8 +597,8 @@ export default function HomePage() {
                   onClick={() => {
                     if (!profile) return;
                     navigator.share({
-                      title: "레시피모아 - 유튜브 레시피 자동 정리",
-                      text: "유튜브 요리 영상 URL만 넣으면 레시피가 자동 정리돼요!",
+                      title: "레시피모아",
+                      text: "유튜브에서 본 요리 영상, 링크만 넣으면 재료·조리순서가 자동으로 정리돼! 카톡에 쌓인 레시피 링크 정리할 때 진짜 좋아 👨‍🍳",
                       url: `https://xn--om2b21rhzo.site/?ref=${profile.referral_code}`,
                     });
                   }}

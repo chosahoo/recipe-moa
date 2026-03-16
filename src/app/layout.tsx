@@ -13,8 +13,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "레시피모아 - 유튜브 레시피 추출기",
-  description: "유튜브 요리 영상에서 레시피를 자동으로 추출합니다",
+  title: "레시피모아 - 유튜브 레시피 자동 정리",
+  description: "유튜브 요리 영상 링크만 넣으면 AI가 재료·조리순서를 깔끔하게 정리해줘요. 카톡에 흩어진 레시피 링크, 이제 한곳에서 관리하세요!",
+  openGraph: {
+    title: "레시피모아 - 유튜브 레시피 자동 정리",
+    description: "유튜브 요리 영상 링크만 넣으면 AI가 재료·조리순서를 깔끔하게 정리해줘요!",
+    siteName: "레시피모아",
+    locale: "ko_KR",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
