@@ -70,9 +70,9 @@ export default function AuthButton({ user, onAuthChange }: Props) {
     <a
       href={authUrl}
       onClick={handleLogin}
-      className="inline-block bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer text-center"
+      className="inline-block bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors cursor-pointer text-center whitespace-nowrap"
     >
-      Google 로그인
+      로그인
     </a>
   );
 }
