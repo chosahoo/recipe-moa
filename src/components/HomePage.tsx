@@ -176,7 +176,7 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.method === "no_recipe") {
-        setError("이 영상은 자막·설명·댓글에 레시피 정보가 없어 AI 분석이 불가해요. 다른 영상을 넣어주세요!");
+        setError("이 영상은 자막·설명·댓글에 레시피 정보가 없어 추출이 어려워요. 대부분의 유튜브 영상은 추출이 가능하니, 숏츠 대신 일반 유튜브 영상으로 시도해보세요!");
         setLoading(false);
         setLoadingMsg("");
         return;
@@ -237,8 +237,7 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.method === "no_recipe") {
-        const debugInfo = data.debug ? `\n[디버그: ${data.debug.join(" | ")}]` : "";
-        setError(`이 영상은 자막·설명·댓글에 레시피 정보가 없어 AI 분석이 불가해요. 영상 정보만 기록해놓을게요!${debugInfo}`);
+        setError("이 영상은 자막·설명·댓글에 레시피 정보가 없어 추출이 어려워요. 대부분의 유튜브 영상은 추출이 가능하니, 숏츠 대신 일반 유튜브 영상으로 시도해보세요!");
         // 자막 없는 영상은 기본 정보만 저장
         const basicRecipe = {
           video_id: data.video_id,
@@ -249,7 +248,7 @@ export default function HomePage() {
             category: "기타",
             servings: 1,
             ingredients: [],
-            steps: ["자막이 없어 레시피를 추출할 수 없습니다. 영상을 직접 확인해주세요."],
+            steps: ["이 영상은 자막·댓글에 레시피 정보가 없어 추출이 어려웠어요. 대부분의 유튜브 영상은 추출이 가능하니, 숏츠 대신 일반 영상으로 시도해보세요!"],
             tips: "",
           },
         };
@@ -659,7 +658,7 @@ export default function HomePage() {
                   type="text"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="유튜브 요리 영상 URL을 붙여넣으세요 (숏츠도 가능)"
+                  placeholder="유튜브 요리 영상 URL을 붙여넣으세요"
                   className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent text-gray-900 placeholder-gray-400"
                 />
                 <button
@@ -680,6 +679,7 @@ export default function HomePage() {
                   )}
                 </button>
               </div>
+              <p className="text-xs text-gray-400 mt-2">유튜브 숏츠보다 영상 입력을 권장드립니다 (일부 숏츠는 추출 불가)</p>
             </form>}
 
             {error && (
