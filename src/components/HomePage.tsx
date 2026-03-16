@@ -509,8 +509,9 @@ export default function HomePage() {
                   <div className="space-y-3">
                     {hotRecipes
                       .filter((r) => hotCategory === "전체" || r.category === hotCategory)
-                      .map((hr) => (
+                      .map((hr, idx) => (
                         <div key={hr.video_id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 flex gap-3 items-center">
+                          <span className={`text-lg font-bold shrink-0 w-7 text-center ${idx < 3 ? "text-orange-500" : "text-gray-300"}`}>{idx + 1}</span>
                           <button
                             onClick={() => {
                               const asSaved: SavedRecipe = {
@@ -922,7 +923,7 @@ export default function HomePage() {
                       key={hr.video_id}
                       className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 flex gap-3 items-center overflow-hidden"
                     >
-                      <span className="text-lg font-bold text-orange-500 w-6 text-center shrink-0">{idx + 1}</span>
+                      <span className={`text-lg font-bold shrink-0 w-7 text-center ${idx < 3 ? "text-orange-500" : "text-gray-300"}`}>{idx + 1}</span>
                       <button
                         onClick={() => {
                           const asSaved: SavedRecipe = {
