@@ -112,8 +112,20 @@ export default function HomePage() {
     loadingRef.current = false;
   }, []);
 
+  const safeGetSession = useCallback(async () => {
+    try {
+      const result = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<null>((r) => setTimeout(() => r(null), 5000)),
+      ]);
+      return result?.data?.session ?? null;
+    } catch {
+      return null;
+    }
+  }, [supabase.auth]);
+
   const refreshAuth = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await safeGetSession();
     setUser(session?.user ?? null);
     if (session?.user) {
       authInitialized.current = true;
@@ -125,7 +137,7 @@ export default function HomePage() {
       setTodayCount(0);
       setLimitReached(false);
     }
-  }, [supabase.auth, loadUserData]);
+  }, [safeGetSession, loadUserData]);
 
   useEffect(() => {
     // ref 파라미터 localStorage에 저장 (OAuth 리다이렉트 전에)
@@ -135,7 +147,7 @@ export default function HomePage() {
     let initialLoaded = false;
 
     // 1. 즉시 세션 확인 → 데이터 로드 (가장 빠른 경로)
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    safeGetSession().then(async (session) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
       if (session?.user) {
