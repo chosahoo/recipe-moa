@@ -91,44 +91,25 @@ export default function HomePage() {
     loadingRef.current = true;
     setDataLoading(true);
     try {
-      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
-      const results = await Promise.race([
-        Promise.allSettled([
-          getSavedRecipes(),
-          getOrCreateProfile(userId),
-          getTodayExtractionCount(userId),
-        ]),
-        timeout.then(() => "timeout" as const),
+      const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+        Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+
+      const [recipes, profile, count] = await Promise.all([
+        withTimeout(getSavedRecipes(), 5000),
+        withTimeout(getOrCreateProfile(userId), 5000),
+        withTimeout(getTodayExtractionCount(userId), 5000),
       ]);
 
-      if (results === "timeout") {
-        // 타임아웃 시 각각 개별 시도
-        try { const recipes = await getSavedRecipes(); setSavedRecipes(recipes); } catch { /* ignore */ }
-        try {
-          const p = await getOrCreateProfile(userId);
-          setProfile(p);
-          const count = await getTodayExtractionCount(userId);
-          setTodayCount(count);
-          setLimitReached(count >= p.daily_limit);
-        } catch { /* ignore */ }
-      } else {
-        const [recipesResult, profileResult, countResult] = results;
-        if (recipesResult.status === "fulfilled") setSavedRecipes(recipesResult.value);
-        if (profileResult.status === "fulfilled") {
-          const p = profileResult.value;
-          setProfile(p);
-          if (countResult.status === "fulfilled") {
-            setTodayCount(countResult.value);
-            setLimitReached(countResult.value >= p.daily_limit);
-          }
-        }
+      if (recipes) setSavedRecipes(recipes);
+      if (profile) {
+        setProfile(profile);
+        const c = count ?? 0;
+        setTodayCount(c);
+        setLimitReached(c >= profile.daily_limit);
       }
-    } catch {
-      try { const recipes = await getSavedRecipes(); setSavedRecipes(recipes); } catch { /* ignore */ }
-    } finally {
-      setDataLoading(false);
-      loadingRef.current = false;
-    }
+    } catch { /* ignore */ }
+    setDataLoading(false);
+    loadingRef.current = false;
   }, []);
 
   const refreshAuth = useCallback(async () => {
