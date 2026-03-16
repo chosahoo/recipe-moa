@@ -189,7 +189,6 @@ export default function HomePage() {
             steps: ["설명란·고정댓글에 레시피 정보가 없어 추출이 어려웠어요. 영상을 직접 확인해주세요."],
             tips: "",
           },
-          method: "no_recipe",
         });
         setGuestTried(true);
         localStorage.setItem(GUEST_TRIED_KEY, "true");
