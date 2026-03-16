@@ -819,22 +819,33 @@ export default function HomePage() {
                         </div>
                       </div>
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const text = `${r.recipe.food_name} 레시피\n\n재료: ${r.recipe.ingredients.join(", ")}\n\n조리 순서:\n${r.recipe.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}${r.recipe.tips ? `\n\n팁: ${r.recipe.tips}` : ""}`;
-                        const videoUrl = `https://www.youtube.com/watch?v=${r.video_id}`;
-                        if (navigator.share) {
-                          navigator.share({ title: r.recipe.food_name, text, url: videoUrl });
-                        } else {
-                          navigator.clipboard.writeText(`${text}\n\n영상: ${videoUrl}`);
-                          alert("레시피가 클립보드에 복사되었습니다!");
-                        }
-                      }}
-                      className="shrink-0 bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer"
-                    >
-                      공유
-                    </button>
+                    <div className="shrink-0 flex flex-col gap-1.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const text = `${r.recipe.food_name} 레시피\n\n재료: ${r.recipe.ingredients.join(", ")}\n\n조리 순서:\n${r.recipe.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}${r.recipe.tips ? `\n\n팁: ${r.recipe.tips}` : ""}`;
+                          const videoUrl = `https://www.youtube.com/watch?v=${r.video_id}`;
+                          if (navigator.share) {
+                            navigator.share({ title: r.recipe.food_name, text, url: videoUrl });
+                          } else {
+                            navigator.clipboard.writeText(`${text}\n\n영상: ${videoUrl}`);
+                            alert("레시피가 클립보드에 복사되었습니다!");
+                          }
+                        }}
+                        className="bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer"
+                      >
+                        공유
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (r.db_id && confirm("이 레시피를 삭제할까요?")) handleDelete(r.db_id);
+                        }}
+                        className="text-gray-300 hover:text-red-500 px-3 py-1.5 rounded-full text-xs transition-colors cursor-pointer"
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
