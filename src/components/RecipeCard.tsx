@@ -103,7 +103,14 @@ export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack 
         <h2 className="text-2xl font-bold text-gray-900 mb-1">
           {recipe.recipe.food_name}
         </h2>
-        <p className="text-sm text-gray-500 mb-4 truncate">{recipe.title}</p>
+        <a
+          href={`https://www.youtube.com/watch?v=${recipe.video_id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-blue-500 hover:text-blue-700 hover:underline mb-4 truncate block"
+        >
+          {recipe.title} &#8599;
+        </a>
 
         {/* 인분 조절 */}
         <div className="mb-5">
