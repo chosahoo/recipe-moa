@@ -17,8 +17,19 @@ import AuthButton from "@/components/AuthButton";
 import Image from "next/image";
 import { User, AuthChangeEvent, Session } from "@supabase/supabase-js";
 
-type View = "home" | "extract" | "detail" | "referral";
+type View = "home" | "extract" | "detail" | "hot";
 type Tab = "all" | "favorites";
+
+interface HotRecipe {
+  video_id: string;
+  title: string;
+  thumbnail: string;
+  food_name: string;
+  category: string;
+  ingredient_count: number;
+  step_count: number;
+  save_count: number;
+}
 
 const GUEST_TRIED_KEY = "guest_tried";
 const CATEGORIES = ["전체", "밥/면", "국/찌개", "반찬", "볶음/구이", "디저트/간식", "양식", "중식", "일식", "기타"];
@@ -44,6 +55,9 @@ export default function HomePage() {
   const [todayCount, setTodayCount] = useState(0);
   const [limitReached, setLimitReached] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
+  // 핫 레시피
+  const [hotRecipes, setHotRecipes] = useState<HotRecipe[]>([]);
+  const [hotLoading, setHotLoading] = useState(false);
 
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
@@ -327,6 +341,19 @@ export default function HomePage() {
     setTimeout(() => setReferralCopied(false), 2000);
   };
 
+  const loadHotRecipes = useCallback(async () => {
+    setHotLoading(true);
+    try {
+      const res = await fetch("/api/hot");
+      const data = await res.json();
+      setHotRecipes(data.recipes || []);
+    } catch {
+      setHotRecipes([]);
+    } finally {
+      setHotLoading(false);
+    }
+  }, []);
+
   const filteredRecipes = savedRecipes
     .filter((r) => tab === "favorites" ? r.is_favorite : true)
     .filter((r) => selectedCategory === "전체" ? true : r.recipe.category === selectedCategory);
@@ -455,67 +482,43 @@ export default function HomePage() {
             </div>
           ) : null}
 
-          {/* 체험 결과 */}
+          {/* 체험 결과 - 리스트 형태 */}
           {guestRecipe && (
-            <div className="flex flex-col items-center">
-              {/* 레시피 카드 (저장 불가 버전) */}
-              <div className="bg-white rounded-2xl shadow-md overflow-hidden max-w-2xl w-full">
-                <div className="relative">
-                  <Image
-                    src={guestRecipe.thumbnail}
-                    alt={guestRecipe.title}
-                    width={640}
-                    height={360}
-                    className="w-full h-48 sm:h-56 object-cover"
-                  />
-                </div>
-                <div className="p-5 sm:p-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-1">
+            <div className="max-w-2xl mx-auto">
+              {/* 리스트 아이템 (로그인 유저와 동일한 형태) */}
+              <div className="bg-white rounded-xl shadow-sm p-3 flex gap-4 items-center overflow-hidden mb-4">
+                <Image
+                  src={guestRecipe.thumbnail}
+                  alt={guestRecipe.recipe.food_name}
+                  width={120}
+                  height={68}
+                  className="rounded-lg object-cover w-24 h-16 sm:w-28 sm:h-18 shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold text-gray-900 truncate">
                     {guestRecipe.recipe.food_name}
-                  </h2>
-                  <p className="text-sm text-gray-500 mb-4 truncate">{guestRecipe.title}</p>
-
-                  <div className="mb-5">
-                    <h3 className="text-lg font-semibold text-orange-600 mb-2">재료</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {guestRecipe.recipe.ingredients.map((ing, i) => (
-                        <span key={i} className="bg-orange-50 text-orange-800 px-3 py-1 rounded-full text-sm">
-                          {ing}
-                        </span>
-                      ))}
-                    </div>
+                  </h3>
+                  <p className="text-xs text-gray-400 truncate mt-0.5">
+                    {guestRecipe.title}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                      {guestRecipe.recipe.category || "기타"}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      재료 {guestRecipe.recipe.ingredients.length}개 &middot; {guestRecipe.recipe.steps.length}단계
+                    </span>
                   </div>
-
-                  <div className="mb-5">
-                    <h3 className="text-lg font-semibold text-orange-600 mb-2">조리 순서</h3>
-                    <ol className="space-y-2">
-                      {guestRecipe.recipe.steps.map((step, i) => (
-                        <li key={i} className="flex items-start gap-3">
-                          <span className="text-sm leading-relaxed text-gray-700">
-                            <span className="font-semibold text-gray-900">{i + 1}.</span> {step}
-                          </span>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-
-                  {guestRecipe.recipe.tips && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
-                      <p className="text-sm text-amber-800">
-                        <span className="font-semibold">Tip:</span> {guestRecipe.recipe.tips}
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
 
               {/* 로그인 유도 */}
-              <div className="mt-6 bg-orange-50 border border-orange-200 rounded-xl p-6 text-center max-w-2xl w-full">
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-6 text-center">
                 <p className="text-gray-800 font-semibold mb-2">
-                  이 레시피를 저장하고 싶으신가요?
+                  로그인하시면 나만의 레시피들을 이렇게 정리할 수 있어요
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
-                  로그인하면 레시피 저장은 물론, 1인분·2인분 원하는 인분만큼 재료를 자동 계산해드려요!
+                  인분 계산, 즐겨찾기, 카톡 공유까지 한번에!
                 </p>
                 <AuthButton user={null} onAuthChange={refreshAuth} />
               </div>
@@ -541,10 +544,10 @@ export default function HomePage() {
             {view === "home" && (
               <>
                 <button
-                  onClick={() => setView("referral")}
+                  onClick={() => { setView("hot"); loadHotRecipes(); }}
                   className="text-gray-500 hover:text-orange-500 text-sm font-medium transition-colors cursor-pointer"
                 >
-                  친구 초대
+                  핫 레시피
                 </button>
                 <button
                   onClick={() => { setView("extract"); if (profile) setLimitReached(todayCount >= profile.daily_limit); }}
@@ -554,13 +557,12 @@ export default function HomePage() {
                 </button>
               </>
             )}
-            <AuthButton user={user} onAuthChange={refreshAuth} />
           </div>
         </div>
       </header>
 
       <div className="max-w-3xl mx-auto px-4 mt-6 overflow-hidden">
-        {view === "referral" ? (
+        {view === "hot" ? (
           <>
             <button
               onClick={goHome}
@@ -569,63 +571,59 @@ export default function HomePage() {
               &#8592; 목록으로
             </button>
 
-            <div className="text-center mb-8">
-              <p className="text-5xl mb-4">&#127873;</p>
-              <h2 className="text-xl font-bold text-gray-800 mb-2">친구 초대하고 추출 횟수 늘리기</h2>
-              <p className="text-gray-500 text-sm">현재 하루 {profile?.daily_limit || 1}회 사용 가능</p>
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-1">핫 레시피</h2>
+              <p className="text-gray-500 text-sm">사람들이 많이 저장한 인기 레시피</p>
             </div>
 
-            <div className="space-y-4 max-w-md mx-auto">
-              {/* 설명 */}
-              <div className="bg-white rounded-xl shadow-sm p-5">
-                <h3 className="font-semibold text-gray-800 mb-3">어떻게 하면 되나요?</h3>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <span className="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold shrink-0">1</span>
-                    <p className="text-sm text-gray-600">아래 초대 링크를 친구에게 공유하세요</p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold shrink-0">2</span>
-                    <p className="text-sm text-gray-600">친구가 링크를 통해 Google 로그인하면 완료!</p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold shrink-0">3</span>
-                    <p className="text-sm text-gray-600">나의 하루 추출 횟수가 <span className="font-bold text-orange-600">3회</span>로 늘어나요</p>
-                  </div>
-                </div>
+            {hotLoading ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full mb-3" />
+                <p className="text-sm text-gray-500">인기 레시피를 불러오는 중...</p>
               </div>
-
-              {/* 초대 링크 */}
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-5 text-center">
-                <p className="text-sm text-gray-600 mb-3">나의 초대 링크</p>
-                <div className="bg-white rounded-lg px-4 py-3 mb-4 text-sm text-gray-700 break-all border border-orange-100">
-                  {profile ? `https://xn--om2b21rhzo.site/?ref=${profile.referral_code}` : "로딩 중..."}
-                </div>
-                <button
-                  onClick={copyReferralLink}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white px-5 py-3 rounded-xl text-sm font-medium transition-colors cursor-pointer"
-                >
-                  {referralCopied ? "복사 완료!" : "초대 링크 복사하기"}
-                </button>
+            ) : hotRecipes.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <p className="text-5xl mb-4">&#127859;</p>
+                <p className="text-lg">아직 인기 레시피가 없어요</p>
               </div>
-
-              {/* 카카오톡 공유 */}
-              {typeof navigator !== "undefined" && navigator.share && (
-                <button
-                  onClick={() => {
-                    if (!profile) return;
-                    navigator.share({
-                      title: "레시피모아",
-                      text: "유튜브에서 본 요리 영상, 링크만 넣으면 재료·조리순서가 자동으로 정리돼! 카톡에 쌓인 레시피 링크 정리할 때 진짜 좋아 👨‍🍳",
-                      url: `https://xn--om2b21rhzo.site/?ref=${profile.referral_code}`,
-                    });
-                  }}
-                  className="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-5 py-3 rounded-xl text-sm font-medium transition-colors cursor-pointer"
-                >
-                  카톡 / SNS로 공유하기
-                </button>
-              )}
-            </div>
+            ) : (
+              <div className="grid gap-3">
+                {hotRecipes.map((hr, idx) => (
+                  <a
+                    key={hr.video_id}
+                    href={`https://www.youtube.com/watch?v=${hr.video_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 flex gap-4 items-center overflow-hidden"
+                  >
+                    <span className="text-lg font-bold text-orange-500 w-6 text-center shrink-0">{idx + 1}</span>
+                    <Image
+                      src={hr.thumbnail}
+                      alt={hr.food_name}
+                      width={120}
+                      height={68}
+                      className="rounded-lg object-cover w-24 h-16 sm:w-28 sm:h-18 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-gray-900 truncate">
+                        {hr.food_name}
+                      </h3>
+                      <p className="text-xs text-gray-400 truncate mt-0.5">
+                        {hr.title}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                          {hr.category}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {hr.save_count}명 저장
+                        </span>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
           </>
         ) : view === "detail" && selectedRecipe ? (
           <div className="flex justify-center">
@@ -652,21 +650,60 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* 추출 제한 도달 메시지 */}
+            {/* 추출 제한 도달 → 친구 초대 안내 */}
             {limitReached && profile && (
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-5 mb-6 text-center">
-                <p className="text-gray-800 font-semibold mb-2">
-                  오늘의 추출 횟수를 모두 사용했어요!
-                </p>
-                <p className="text-sm text-gray-500 mb-4">
-                  친구에게 공유하면 하루 3회까지 가능해요!
-                </p>
-                <button
-                  onClick={() => setView("referral")}
-                  className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                >
-                  친구 초대하고 횟수 늘리기
-                </button>
+              <div className="space-y-4 max-w-md mx-auto mb-6">
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-5 text-center">
+                  <p className="text-gray-800 font-semibold mb-2">
+                    오늘의 추출 횟수를 모두 사용했어요!
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    친구초대를 통해 추출 횟수를 늘려보세요
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm p-5">
+                  <h3 className="font-semibold text-gray-800 mb-3">친구 초대하고 횟수 늘리기</h3>
+                  <div className="space-y-3 mb-4">
+                    <div className="flex items-start gap-3">
+                      <span className="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold shrink-0">1</span>
+                      <p className="text-sm text-gray-600">아래 초대 링크를 친구에게 공유하세요</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold shrink-0">2</span>
+                      <p className="text-sm text-gray-600">친구가 링크를 통해 Google 로그인하면 완료!</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold shrink-0">3</span>
+                      <p className="text-sm text-gray-600">나의 하루 추출 횟수가 <span className="font-bold text-orange-600">3회</span>로 늘어나요</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg px-4 py-3 mb-3 text-sm text-gray-700 break-all border border-gray-100">
+                    {profile ? `https://xn--om2b21rhzo.site/?ref=${profile.referral_code}` : "로딩 중..."}
+                  </div>
+                  <button
+                    onClick={copyReferralLink}
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-white px-5 py-3 rounded-xl text-sm font-medium transition-colors cursor-pointer mb-2"
+                  >
+                    {referralCopied ? "복사 완료!" : "초대 링크 복사하기"}
+                  </button>
+                  {typeof navigator !== "undefined" && navigator.share && (
+                    <button
+                      onClick={() => {
+                        if (!profile) return;
+                        navigator.share({
+                          title: "레시피모아",
+                          text: "유튜브에서 본 요리 영상, 링크만 넣으면 재료·조리순서가 자동으로 정리돼! 카톡에 쌓인 레시피 링크 정리할 때 진짜 좋아",
+                          url: `https://xn--om2b21rhzo.site/?ref=${profile.referral_code}`,
+                        });
+                      }}
+                      className="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-5 py-3 rounded-xl text-sm font-medium transition-colors cursor-pointer"
+                    >
+                      카톡 / SNS로 공유하기
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -877,6 +914,23 @@ export default function HomePage() {
             )}
           </>
         )}
+      </div>
+
+      {/* 하단 로그아웃 */}
+      <div className="max-w-3xl mx-auto px-4 mt-12 pb-8 text-center">
+        <p className="text-xs text-gray-400 mb-2">
+          {user.user_metadata?.name || user.email}
+        </p>
+        <button
+          type="button"
+          onClick={async () => {
+            await supabase.auth.signOut();
+            refreshAuth();
+          }}
+          className="text-xs text-gray-400 hover:text-red-500 transition-colors cursor-pointer px-3 py-2"
+        >
+          로그아웃
+        </button>
       </div>
     </main>
   );
