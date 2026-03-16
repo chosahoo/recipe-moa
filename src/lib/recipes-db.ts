@@ -136,7 +136,7 @@ export async function getOrCreateProfile(userId: string): Promise<UserProfile> {
   if (error && error.code === "PGRST116") {
     const { data: newProfile, error: insertError } = await supabase
       .from("user_profiles")
-      .insert({ user_id: userId, referral_code: generateReferralCode(), daily_limit: 1 })
+      .insert({ user_id: userId, referral_code: generateReferralCode(), daily_limit: 3 })
       .select()
       .single();
 
@@ -184,11 +184,11 @@ export async function applyReferral(referralCode: string, newUserId: string): Pr
   // Don't allow self-referral
   if (referrer.user_id === newUserId) return false;
 
-  // Increase referrer's daily limit to 5 (idempotent)
-  if (referrer.daily_limit < 3) {
+  // Increase referrer's daily limit to 10 (idempotent)
+  if (referrer.daily_limit < 10) {
     const { error: updateError } = await supabase
       .from("user_profiles")
-      .update({ daily_limit: 3 })
+      .update({ daily_limit: 10 })
       .eq("user_id", referrer.user_id);
 
     if (updateError) throw updateError;
