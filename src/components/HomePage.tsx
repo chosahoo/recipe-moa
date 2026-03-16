@@ -73,6 +73,7 @@ export default function HomePage() {
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
   const authInitialized = useRef(false);
+  const loadingRef = useRef(false);
   const prevView = useRef<View>("home");
 
   const loadRecipes = useCallback(async () => {
@@ -85,26 +86,50 @@ export default function HomePage() {
   }, []);
 
   const loadUserData = useCallback(async (userId: string) => {
+    // 이미 로딩 중이면 중복 호출 방지
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setDataLoading(true);
     try {
-      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000));
-      const [, p, count] = await Promise.race([
-        Promise.all([
-          loadRecipes(),
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
+      const results = await Promise.race([
+        Promise.allSettled([
+          getSavedRecipes(),
           getOrCreateProfile(userId),
           getTodayExtractionCount(userId),
         ]),
-        timeout,
-      ]) as [void, ReturnType<typeof getOrCreateProfile> extends Promise<infer T> ? T : never, number];
-      setProfile(p);
-      setTodayCount(count);
-      setLimitReached(count >= p.daily_limit);
+        timeout.then(() => "timeout" as const),
+      ]);
+
+      if (results === "timeout") {
+        // 타임아웃 시 각각 개별 시도
+        try { const recipes = await getSavedRecipes(); setSavedRecipes(recipes); } catch { /* ignore */ }
+        try {
+          const p = await getOrCreateProfile(userId);
+          setProfile(p);
+          const count = await getTodayExtractionCount(userId);
+          setTodayCount(count);
+          setLimitReached(count >= p.daily_limit);
+        } catch { /* ignore */ }
+      } else {
+        const [recipesResult, profileResult, countResult] = results;
+        if (recipesResult.status === "fulfilled") setSavedRecipes(recipesResult.value);
+        if (profileResult.status === "fulfilled") {
+          const p = profileResult.value;
+          setProfile(p);
+          if (countResult.status === "fulfilled") {
+            setTodayCount(countResult.value);
+            setLimitReached(countResult.value >= p.daily_limit);
+          }
+        }
+      }
     } catch {
-      try { await loadRecipes(); } catch { /* ignore */ }
+      try { const recipes = await getSavedRecipes(); setSavedRecipes(recipes); } catch { /* ignore */ }
     } finally {
       setDataLoading(false);
+      loadingRef.current = false;
     }
-  }, [loadRecipes]);
+  }, []);
 
   const refreshAuth = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -126,12 +151,15 @@ export default function HomePage() {
     const ref = new URLSearchParams(window.location.search).get("ref");
     if (ref) localStorage.setItem("pending_referral", ref);
 
+    let initialLoaded = false;
+
     // 1. 즉시 세션 확인 → 데이터 로드 (가장 빠른 경로)
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
       if (session?.user) {
         authInitialized.current = true;
+        initialLoaded = true;
         await loadUserData(session.user.id);
       }
     });
@@ -160,6 +188,9 @@ export default function HomePage() {
         if (window.location.hash?.includes("access_token")) {
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }
+      } else if (session?.user && initialLoaded) {
+        // getSession에서 이미 로드했으면 중복 호출 방지
+        return;
       } else if (!session?.user) {
         authInitialized.current = false;
         setSavedRecipes([]);
