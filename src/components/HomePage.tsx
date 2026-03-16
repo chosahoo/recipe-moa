@@ -573,7 +573,7 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold shrink-0">3</span>
-                    <p className="text-sm text-gray-600">나의 하루 추출 횟수가 <span className="font-bold text-orange-600">5회</span>로 늘어나요</p>
+                    <p className="text-sm text-gray-600">나의 하루 추출 횟수가 <span className="font-bold text-orange-600">3회</span>로 늘어나요</p>
                   </div>
                 </div>
               </div>
@@ -642,7 +642,7 @@ export default function HomePage() {
                   오늘의 추출 횟수를 모두 사용했어요!
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
-                  친구에게 공유하면 하루 5회까지 가능해요!
+                  친구에게 공유하면 하루 3회까지 가능해요!
                 </p>
                 <button
                   onClick={() => setView("referral")}

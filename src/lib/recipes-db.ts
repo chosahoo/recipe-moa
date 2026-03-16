@@ -185,10 +185,10 @@ export async function applyReferral(referralCode: string, newUserId: string): Pr
   if (referrer.user_id === newUserId) return false;
 
   // Increase referrer's daily limit to 5 (idempotent)
-  if (referrer.daily_limit < 5) {
+  if (referrer.daily_limit < 3) {
     const { error: updateError } = await supabase
       .from("user_profiles")
-      .update({ daily_limit: 5 })
+      .update({ daily_limit: 3 })
       .eq("user_id", referrer.user_id);
 
     if (updateError) throw updateError;
