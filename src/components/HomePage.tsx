@@ -86,14 +86,10 @@ export default function HomePage() {
   }, []);
 
   const loadUserData = useCallback(async (userId: string) => {
-    // 이미 로딩 중이면 중복 호출 방지
     if (loadingRef.current) return;
     loadingRef.current = true;
     setDataLoading(true);
     try {
-      // 세션 토큰 리프레시 완료 보장 (만료된 토큰이면 여기서 갱신됨)
-      await supabase.auth.getSession();
-
       const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
         Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
 
@@ -113,52 +109,60 @@ export default function HomePage() {
     } catch { /* ignore */ }
     setDataLoading(false);
     loadingRef.current = false;
-  }, [supabase.auth]);
-
-  const safeGetSession = useCallback(async () => {
-    try {
-      const result = await Promise.race([
-        supabase.auth.getSession(),
-        new Promise<null>((r) => setTimeout(() => r(null), 5000)),
-      ]);
-      return result?.data?.session ?? null;
-    } catch {
-      return null;
-    }
-  }, [supabase.auth]);
+  }, []);
 
   const refreshAuth = useCallback(async () => {
-    const session = await safeGetSession();
-    setUser(session?.user ?? null);
-    if (session?.user) {
-      authInitialized.current = true;
-      await loadUserData(session.user.id);
-    } else {
-      authInitialized.current = false;
+    loadingRef.current = false; // 리셋
+    authInitialized.current = false;
+    try {
+      const { data: { session } } = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000)),
+      ]);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        authInitialized.current = true;
+        await loadUserData(session.user.id);
+      } else {
+        setSavedRecipes([]);
+        setProfile(null);
+        setTodayCount(0);
+        setLimitReached(false);
+      }
+    } catch {
+      setUser(null);
       setSavedRecipes([]);
-      setProfile(null);
-      setTodayCount(0);
-      setLimitReached(false);
     }
-  }, [safeGetSession, loadUserData]);
+  }, [supabase.auth, loadUserData]);
 
   useEffect(() => {
     // ref 파라미터 localStorage에 저장 (OAuth 리다이렉트 전에)
     const ref = new URLSearchParams(window.location.search).get("ref");
     if (ref) localStorage.setItem("pending_referral", ref);
 
-    // authLoading 5초 안전장치
-    const authTimeout = setTimeout(() => setAuthLoading(false), 5000);
+    // 1. getSession으로 초기화 (토큰 리프레시 포함)
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+      if (session?.user) {
+        authInitialized.current = true;
+        await loadUserData(session.user.id);
+      }
+    }).catch(() => {
+      setAuthLoading(false);
+    });
 
-    // onAuthStateChange 하나로 통합 (INITIAL_SESSION 이벤트가 세션 복원 완료 후 발생)
+    // 2. 이후 변경만 감지 (로그인, 로그아웃, 토큰 리프레시)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-      clearTimeout(authTimeout);
+      // INITIAL_SESSION은 getSession에서 이미 처리했으므로 무시
+      if (event === "INITIAL_SESSION") return;
+
       setUser(session?.user ?? null);
       setAuthLoading(false);
 
-      if (session?.user && !authInitialized.current) {
+      if (event === "SIGNED_IN" && session?.user && !authInitialized.current) {
         authInitialized.current = true;
         await loadUserData(session.user.id);
         // 리퍼럴 코드 적용 (URL 또는 localStorage에서)
@@ -175,7 +179,12 @@ export default function HomePage() {
         if (window.location.hash?.includes("access_token")) {
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }
-      } else if (!session?.user) {
+      } else if (event === "TOKEN_REFRESHED" && session?.user) {
+        // 토큰 갱신 후 데이터가 비어있으면 다시 로드
+        // (초기 로드가 만료 토큰으로 빈 결과였을 경우)
+        loadingRef.current = false;
+        await loadUserData(session.user.id);
+      } else if (event === "SIGNED_OUT") {
         authInitialized.current = false;
         setSavedRecipes([]);
         setProfile(null);
