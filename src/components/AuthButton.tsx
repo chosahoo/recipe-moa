@@ -33,33 +33,19 @@ function getIsInAppBrowser(): boolean {
 function openInExternalBrowser(url: string): boolean {
   const ua = navigator.userAgent || "";
 
+  // 카카오톡 전용 (iOS/Android 모두)
+  if (/KAKAOTALK/i.test(ua)) {
+    window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`;
+    return true;
+  }
+
   // Android: intent로 Chrome 열기
   if (/android/i.test(ua)) {
-    // 카카오톡 전용: kakaotalk://web/openExternal
-    if (/KAKAOTALK/i.test(ua)) {
-      window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`;
-      return true;
-    }
     window.location.href = `intent://${url.replace(/https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
     return true;
   }
 
-  // iOS: Safari로 열기 시도
-  if (/iPhone|iPad/i.test(ua)) {
-    // 카카오톡 전용
-    if (/KAKAOTALK/i.test(ua)) {
-      window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`;
-      return true;
-    }
-    // 기타 인앱 브라우저: Safari로 강제 열기
-    window.location.href = `x-safari-https://${url.replace(/https?:\/\//, "")}`;
-    setTimeout(() => {
-      // Safari 스킴 실패 시 fallback
-      window.open(url, "_blank");
-    }, 500);
-    return true;
-  }
-
+  // iOS/기타: 외부 브라우저 강제 열기 불가 → false 반환하여 복사 안내
   return false;
 }
 
@@ -107,9 +93,12 @@ export default function AuthButton({ user, onAuthChange }: Props) {
       // 외부 브라우저로 열기 시도
       const opened = openInExternalBrowser(currentUrl);
       if (!opened) {
-        // 실패 시 URL 복사 안내
-        navigator.clipboard?.writeText(currentUrl);
-        alert("인앱 브라우저에서는 Google 로그인이 제한됩니다.\n\n주소가 복사되었습니다!\nSafari 또는 Chrome에서 붙여넣기 해주세요.");
+        // iOS 등: 복사 후 안내
+        navigator.clipboard?.writeText(currentUrl).then(() => {
+          alert("인앱 브라우저에서는 Google 로그인이 제한됩니다 😢\n\n주소가 복사되었습니다!\nSafari 또는 Chrome에서 붙여넣기 해주세요.");
+        }).catch(() => {
+          alert(`인앱 브라우저에서는 Google 로그인이 제한됩니다 😢\n\n아래 주소를 Safari 또는 Chrome에서 열어주세요:\n${currentUrl}`);
+        });
       }
     }
   };
