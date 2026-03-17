@@ -343,6 +343,8 @@ export default function HomePage() {
       if (profile && newCount >= profile.daily_limit) setLimitReached(true);
 
       const saved = await saveRecipe(data, user.id);
+      // 핫레시피 집계용 기록
+      fetch("/api/hot/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).catch(() => {});
       await loadRecipes();
       setSelectedRecipe(saved);
       setView("detail");
