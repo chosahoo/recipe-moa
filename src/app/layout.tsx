@@ -41,6 +41,8 @@ export default function RootLayout({
     <html lang="ko">
       <head>
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👨‍🍳</text></svg>" />
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-W8VGJW1C3T"></script>
+        <script dangerouslySetInnerHTML={{ __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-W8VGJW1C3T');` }} />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
