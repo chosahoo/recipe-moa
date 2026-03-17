@@ -11,7 +11,23 @@ interface Props {
 function getIsInAppBrowser(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
-  return /KAKAOTALK|Instagram|Threads|NAVER|Line|FBAN|FBAV|FB_IAB|Twitter|Snapchat|Daum|everytimeApp|SamsungBrowser\/.*CrossApp|wv\)/i.test(ua);
+
+  // 1. 알려진 인앱 브라우저 키워드
+  if (/KAKAOTALK|Instagram|Barcelona|Threads|NAVER|Line\/|FBAN|FBAV|FB_IAB|Twitter|Snapchat|Daum|everytimeApp/i.test(ua)) {
+    return true;
+  }
+
+  // 2. Android WebView 감지 (wv) 또는 Version/X.X 없는 Chrome
+  if (/android/i.test(ua) && (/wv\)|\.wv\b/i.test(ua) || (/Chrome/i.test(ua) && !/SamsungBrowser/i.test(ua) && !/Version\//i.test(ua) && /\bwv\b/i.test(ua)))) {
+    return true;
+  }
+
+  // 3. iOS: Safari가 아닌 웹킷 브라우저 = 인앱 브라우저
+  if (/iPhone|iPad/i.test(ua) && /WebKit/i.test(ua) && !/Safari\//i.test(ua)) {
+    return true;
+  }
+
+  return false;
 }
 
 function openInExternalBrowser(url: string): boolean {
