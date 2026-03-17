@@ -91,6 +91,9 @@ export default function HomePage() {
     loadingRef.current = true;
     setDataLoading(true);
     try {
+      // 세션 토큰 리프레시 완료 보장 (만료된 토큰이면 여기서 갱신됨)
+      await supabase.auth.getSession();
+
       const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
         Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
 
@@ -100,14 +103,7 @@ export default function HomePage() {
         withTimeout(getTodayExtractionCount(userId), 5000),
       ]);
 
-      if (recipes && recipes.length > 0) {
-        setSavedRecipes(recipes);
-      } else if (recipes && recipes.length === 0) {
-        // RLS 토큰 미동기화로 빈 결과일 수 있음 → 1초 후 재시도
-        await new Promise((r) => setTimeout(r, 1000));
-        const retry = await withTimeout(getSavedRecipes(), 5000);
-        setSavedRecipes(retry ?? []);
-      }
+      setSavedRecipes(recipes ?? []);
       if (profile) {
         setProfile(profile);
         const c = count ?? 0;
@@ -117,7 +113,7 @@ export default function HomePage() {
     } catch { /* ignore */ }
     setDataLoading(false);
     loadingRef.current = false;
-  }, []);
+  }, [supabase.auth]);
 
   const safeGetSession = useCallback(async () => {
     try {
