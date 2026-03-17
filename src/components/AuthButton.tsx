@@ -8,6 +8,45 @@ interface Props {
   onAuthChange: () => void;
 }
 
+function getIsInAppBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /KAKAOTALK|Instagram|Threads|NAVER|Line|FBAN|FBAV|FB_IAB|Twitter|Snapchat|Daum|everytimeApp|SamsungBrowser\/.*CrossApp|wv\)/i.test(ua);
+}
+
+function openInExternalBrowser(url: string): boolean {
+  const ua = navigator.userAgent || "";
+
+  // Android: intent로 Chrome 열기
+  if (/android/i.test(ua)) {
+    // 카카오톡 전용: kakaotalk://web/openExternal
+    if (/KAKAOTALK/i.test(ua)) {
+      window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`;
+      return true;
+    }
+    window.location.href = `intent://${url.replace(/https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
+    return true;
+  }
+
+  // iOS: Safari로 열기 시도
+  if (/iPhone|iPad/i.test(ua)) {
+    // 카카오톡 전용
+    if (/KAKAOTALK/i.test(ua)) {
+      window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`;
+      return true;
+    }
+    // 기타 인앱 브라우저: Safari로 강제 열기
+    window.location.href = `x-safari-https://${url.replace(/https?:\/\//, "")}`;
+    setTimeout(() => {
+      // Safari 스킴 실패 시 fallback
+      window.open(url, "_blank");
+    }, 500);
+    return true;
+  }
+
+  return false;
+}
+
 export default function AuthButton({ user, onAuthChange }: Props) {
   const supabase = createClient();
 
@@ -43,26 +82,19 @@ export default function AuthButton({ user, onAuthChange }: Props) {
     if (ref) localStorage.setItem("pending_referral", ref);
   }
 
-  // 인앱 브라우저 감지 (카카오톡, 인스타그램, 네이버, 라인 등)
-  const isInAppBrowser = typeof navigator !== "undefined" &&
-    /KAKAOTALK|Instagram|NAVER|Line|FBAN|FBAV|SamsungBrowser\/.*CrossApp/i.test(navigator.userAgent);
+  const isInApp = getIsInAppBrowser();
 
   const handleLogin = (e: React.MouseEvent) => {
-    if (isInAppBrowser) {
+    if (isInApp) {
       e.preventDefault();
-      // 외부 브라우저로 열기
       const currentUrl = window.location.href;
-      // Android intent 방식
-      if (/android/i.test(navigator.userAgent)) {
-        window.location.href = `intent://${currentUrl.replace(/https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
-        return;
-      }
-      // iOS/기타: 안내 메시지
-      if (confirm("인앱 브라우저에서는 Google 로그인이 제한됩니다.\n\nSafari/Chrome에서 열어주세요.\n\n주소를 복사할까요?")) {
+      // 외부 브라우저로 열기 시도
+      const opened = openInExternalBrowser(currentUrl);
+      if (!opened) {
+        // 실패 시 URL 복사 안내
         navigator.clipboard?.writeText(currentUrl);
-        alert("주소가 복사되었습니다!\nSafari 또는 Chrome에서 붙여넣기 해주세요.");
+        alert("인앱 브라우저에서는 Google 로그인이 제한됩니다.\n\n주소가 복사되었습니다!\nSafari 또는 Chrome에서 붙여넣기 해주세요.");
       }
-      return;
     }
   };
 
