@@ -100,7 +100,14 @@ export default function HomePage() {
         withTimeout(getTodayExtractionCount(userId), 5000),
       ]);
 
-      if (recipes) setSavedRecipes(recipes);
+      if (recipes && recipes.length > 0) {
+        setSavedRecipes(recipes);
+      } else if (recipes && recipes.length === 0) {
+        // RLS 토큰 미동기화로 빈 결과일 수 있음 → 1초 후 재시도
+        await new Promise((r) => setTimeout(r, 1000));
+        const retry = await withTimeout(getSavedRecipes(), 5000);
+        setSavedRecipes(retry ?? []);
+      }
       if (profile) {
         setProfile(profile);
         const c = count ?? 0;
