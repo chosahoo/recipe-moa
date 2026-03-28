@@ -5,27 +5,86 @@ import { updateCheckedSteps, toggleFavorite } from "@/lib/recipes-db";
 import Image from "next/image";
 import { useState } from "react";
 
+function Thumbnail({ src, alt, width, height, className }: { src: string; alt: string; width: number; height: number; className: string }) {
+  const [imgSrc, setImgSrc] = useState(src);
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <div className={`${className} bg-orange-100 flex items-center justify-center`}>
+        <span className="text-orange-400 text-2xl font-bold">{alt?.charAt(0) || "?"}</span>
+      </div>
+    );
+  }
+
+  return (
+    <Image
+      src={imgSrc}
+      alt={alt}
+      width={width}
+      height={height}
+      className={className}
+      onError={() => {
+        if (imgSrc.includes("hqdefault")) {
+          setImgSrc(imgSrc.replace("hqdefault", "default"));
+        } else {
+          setFailed(true);
+        }
+      }}
+    />
+  );
+}
+
 interface Props {
   recipe: SavedRecipe;
   onDelete?: (dbId: string) => void;
   onFavoriteChange?: () => void;
   onBack?: () => void;
+  onGuestFavorite?: () => void;
 }
 
 // "돼지고기 목살 500g" → 숫자 부분만 비율 계산
-function adjustIngredient(ingredient: string, ratio: number): string {
-  if (ratio === 1) return ingredient;
-  return ingredient.replace(/(\d+\.?\d*)/g, (match) => {
-    const num = parseFloat(match);
-    const adjusted = num * ratio;
-    // 정수로 떨어지면 정수, 아니면 소수 첫째자리까지
-    return adjusted % 1 === 0
-      ? adjusted.toString()
-      : adjusted.toFixed(1).replace(/\.0$/, "");
-  });
+function formatNumber(n: number): string {
+  if (n % 1 === 0) return n.toString();
+  // 깔끔한 분수로 표현 가능한지 확인
+  const fractions: [number, string][] = [
+    [1/4, "1/4"], [1/3, "1/3"], [1/2, "1/2"],
+    [2/3, "2/3"], [3/4, "3/4"],
+  ];
+  for (const [val, str] of fractions) {
+    if (Math.abs(n - val) < 0.001) return str;
+    if (n > 1) {
+      const whole = Math.floor(n);
+      const frac = n - whole;
+      for (const [fVal, fStr] of fractions) {
+        if (Math.abs(frac - fVal) < 0.001) return `${whole}과${fStr}`;
+      }
+    }
+  }
+  return n % 1 === 0 ? n.toString() : n.toFixed(1).replace(/\.0$/, "");
 }
 
-export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack }: Props) {
+function adjustIngredient(ingredient: string, ratio: number): string {
+  if (ratio === 1) return ingredient;
+  const units = "개|큰술|작은술|컵|대|줄|봉|통|근|장|조각|쪽|알|톨|마리|포기|숟갈|스푼|티스푼";
+  return ingredient
+    // 한글 "반" 수량 처리 (양파 반개, 반 큰술 등)
+    .replace(new RegExp(`반\\s*(${units})`, "g"), (_, unit) => {
+      const adjusted = 0.5 * ratio;
+      return adjusted === 0.5 ? `반${unit}` : `${formatNumber(adjusted)}${unit}`;
+    })
+    // 분수(1/4, 1/2 등)를 먼저 처리
+    .replace(/(\d+)\/(\d+)/g, (_, num, den) => {
+      const adjusted = (parseInt(num) / parseInt(den)) * ratio;
+      return formatNumber(adjusted);
+    }).replace(/(?<!\/)(\d+\.?\d*)(?!\/|\d)/g, (match) => {
+      const num = parseFloat(match);
+      const adjusted = num * ratio;
+      return formatNumber(adjusted);
+    });
+}
+
+export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack, onGuestFavorite }: Props) {
   const [checkedSteps, setCheckedSteps] = useState<boolean[]>(
     recipe.checked_steps
   );
@@ -43,8 +102,18 @@ export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack 
     }
   };
 
+  const [guestToast, setGuestToast] = useState(false);
+
   const handleFavorite = async () => {
-    if (!recipe.db_id) return;
+    if (!recipe.db_id) {
+      if (onGuestFavorite) {
+        onGuestFavorite();
+      } else {
+        setGuestToast(true);
+        setTimeout(() => setGuestToast(false), 2500);
+      }
+      return;
+    }
     const next = !favorite;
     setFavorite(next);
     await toggleFavorite(recipe.db_id, next);
@@ -66,9 +135,9 @@ export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack 
   return (
     <div className="bg-white rounded-2xl shadow-md overflow-hidden max-w-2xl w-full">
       <div className="relative">
-        <Image
+        <Thumbnail
           src={recipe.thumbnail}
-          alt={recipe.title}
+          alt={recipe.recipe.food_name}
           width={640}
           height={360}
           className="w-full h-48 sm:h-56 object-cover"
@@ -99,6 +168,11 @@ export default function RecipeCard({ recipe, onDelete, onFavoriteChange, onBack 
         </div>
       </div>
 
+      {guestToast && (
+        <div className="bg-orange-50 border-b border-orange-200 px-4 py-2.5 text-center text-sm text-orange-700 font-medium">
+          로그인하면 즐겨찾기를 저장할 수 있어요!
+        </div>
+      )}
       <div className="p-5 sm:p-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-1">
           {recipe.recipe.food_name}

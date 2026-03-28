@@ -17,6 +17,37 @@ import AuthButton from "@/components/AuthButton";
 import Image from "next/image";
 import { User, AuthChangeEvent, Session } from "@supabase/supabase-js";
 
+function Thumbnail({ src, alt, width, height, className }: { src: string; alt: string; width: number; height: number; className: string }) {
+  const [imgSrc, setImgSrc] = useState(src);
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <div className={`${className} bg-orange-100 flex items-center justify-center`}>
+        <span className="text-orange-400 text-lg font-bold">{alt?.charAt(0) || "?"}</span>
+      </div>
+    );
+  }
+
+  return (
+    <Image
+      src={imgSrc}
+      alt={alt}
+      width={width}
+      height={height}
+      className={className}
+      onError={() => {
+        // hqdefault 실패 시 default.jpg로 fallback
+        if (imgSrc.includes("hqdefault")) {
+          setImgSrc(imgSrc.replace("hqdefault", "default"));
+        } else {
+          setFailed(true);
+        }
+      }}
+    />
+  );
+}
+
 type View = "home" | "extract" | "detail" | "hot" | "admin";
 const ADMIN_EMAIL = "sahoo860420@gmail.com";
 type Tab = "all" | "favorites";
@@ -35,7 +66,15 @@ interface HotRecipe {
 }
 
 const GUEST_TRIED_KEY = "guest_tried";
+const GUEST_RECIPE_KEY = "guest_recipe";
+
+function extractVideoId(url: string): string | null {
+  const match = url.match(/(?:v=|\/v\/|youtu\.be\/|\/embed\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
 const CATEGORIES = ["전체", "밥/면", "국/찌개", "반찬", "볶음/구이", "디저트/간식", "양식", "중식", "일식", "기타"];
+
+const RECIPES_CACHE_KEY = "cached_recipes";
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -45,7 +84,14 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("");
   const [error, setError] = useState("");
-  const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
+  const [savedRecipes, _setSavedRecipes] = useState<SavedRecipe[]>([]);
+  const setSavedRecipes = useCallback((recipes: SavedRecipe[]) => {
+    _setSavedRecipes(recipes);
+    try {
+      if (recipes.length > 0) localStorage.setItem(RECIPES_CACHE_KEY, JSON.stringify(recipes));
+      else localStorage.removeItem(RECIPES_CACHE_KEY);
+    } catch { /* quota exceeded 등 무시 */ }
+  }, []);
   const [selectedRecipe, setSelectedRecipe] = useState<SavedRecipe | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("전체");
   const [view, setView] = useState<View>("home");
@@ -62,6 +108,9 @@ export default function HomePage() {
   const [hotRecipes, setHotRecipes] = useState<HotRecipe[]>([]);
   const [hotLoading, setHotLoading] = useState(false);
   const [hotCategory, setHotCategory] = useState("전체");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [hotSearchQuery, setHotSearchQuery] = useState("");
+  const [toast, setToast] = useState("");
   // 어드민
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [adminStats, setAdminStats] = useState<any>(null);
@@ -74,6 +123,7 @@ export default function HomePage() {
   const supabase = supabaseRef.current;
   const authInitialized = useRef(false);
   const loadingRef = useRef(false);
+  const hasLoadedOnce = useRef(false);
   const prevView = useRef<View>("home");
 
   const loadRecipes = useCallback(async () => {
@@ -85,21 +135,28 @@ export default function HomePage() {
     }
   }, []);
 
-  const loadUserData = useCallback(async (userId: string) => {
+  const loadUserData = useCallback(async (userId: string, prefetchedRecipes?: Promise<SavedRecipe[] | null>, silent?: boolean) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
-    setDataLoading(true);
+    if (!silent) setDataLoading(true);
     try {
       const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
         Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
 
-      const [recipes, profile, count] = await Promise.all([
-        withTimeout(getSavedRecipes(), 5000),
+      // 레시피 먼저 보여주고, profile/count는 백그라운드 로드
+      const recipesPromise = withTimeout(prefetchedRecipes ?? getSavedRecipes(), 5000);
+      const bgPromise = Promise.all([
         withTimeout(getOrCreateProfile(userId), 5000),
         withTimeout(getTodayExtractionCount(userId), 5000),
       ]);
 
+      const recipes = await recipesPromise;
       setSavedRecipes(recipes ?? []);
+      if (!silent) setDataLoading(false);
+      hasLoadedOnce.current = true;
+
+      // profile/count는 UI 차단 없이 로드
+      const [profile, count] = await bgPromise;
       if (profile) {
         setProfile(profile);
         const c = count ?? 0;
@@ -107,7 +164,7 @@ export default function HomePage() {
         setLimitReached(c >= profile.daily_limit);
       }
     } catch { /* ignore */ }
-    setDataLoading(false);
+    if (!silent) setDataLoading(false);
     loadingRef.current = false;
   }, []);
 
@@ -140,13 +197,62 @@ export default function HomePage() {
     const ref = new URLSearchParams(window.location.search).get("ref");
     if (ref) localStorage.setItem("pending_referral", ref);
 
-    // 1. getSession으로 초기화 (토큰 리프레시 포함)
+    // 1. localStorage 캐시로 즉시 표시 (동기, useEffect 내이므로 window 접근 안전)
+    let cachedId: string | null = null;
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\s/g, "") ?? "";
+      const projectRef = supabaseUrl.match(/\/\/([^.]+)\./)?.[1] ?? "";
+      if (projectRef) {
+        const raw = localStorage.getItem(`sb-${projectRef}-auth-token`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const cachedUser = parsed?.user ?? parsed?.currentSession?.user;
+          if (cachedUser?.id) {
+            cachedId = cachedUser.id;
+            // 캐시된 유저 즉시 세팅
+            setUser(cachedUser);
+            // 캐시된 레시피 즉시 세팅
+            const cachedRaw = localStorage.getItem(RECIPES_CACHE_KEY);
+            if (cachedRaw) {
+              const cachedRecipes = JSON.parse(cachedRaw);
+              if (cachedRecipes.length > 0) {
+                setSavedRecipes(cachedRecipes);
+                hasLoadedOnce.current = true;
+                setAuthLoading(false);
+              }
+            }
+            authInitialized.current = true;
+          }
+        }
+      }
+    } catch { /* ignore */ }
+
+    // 2. 최신 데이터 백그라운드 로드
+    const earlyRecipes = getSavedRecipes().catch(() => null);
+    if (cachedId) {
+      loadUserData(cachedId, earlyRecipes);
+    }
+
+    // 3. getSession으로 토큰 리프레시 + 실제 검증 (백그라운드)
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null);
-      setAuthLoading(false);
       if (session?.user) {
         authInitialized.current = true;
-        await loadUserData(session.user.id);
+        if (!cachedId) {
+          setAuthLoading(false);
+          await loadUserData(session.user.id, earlyRecipes);
+        }
+      } else {
+        // 캐시는 있었지만 실제로는 만료된 경우 → 로그아웃 처리
+        if (cachedId) {
+          setUser(null);
+          setSavedRecipes([]);
+          setProfile(null);
+          setTodayCount(0);
+          setLimitReached(false);
+          localStorage.removeItem(RECIPES_CACHE_KEY);
+        }
+        setAuthLoading(false);
       }
     }).catch(() => {
       setAuthLoading(false);
@@ -179,11 +285,23 @@ export default function HomePage() {
         if (window.location.hash?.includes("access_token")) {
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }
+        // 게스트 추출 레시피 복원 → 자동 저장
+        const pendingRecipe = localStorage.getItem(GUEST_RECIPE_KEY);
+        if (pendingRecipe) {
+          try {
+            const parsed = JSON.parse(pendingRecipe);
+            await saveRecipe(parsed, session.user.id);
+            localStorage.removeItem(GUEST_RECIPE_KEY);
+            localStorage.removeItem(GUEST_TRIED_KEY);
+            // 저장 후 목록 새로고침
+            loadingRef.current = false;
+            await loadUserData(session.user.id);
+          } catch { /* 무시 */ }
+        }
       } else if (event === "TOKEN_REFRESHED" && session?.user) {
-        // 토큰 갱신 후 데이터가 비어있으면 다시 로드
-        // (초기 로드가 만료 토큰으로 빈 결과였을 경우)
+        // 토큰 갱신 후 백그라운드로 최신 데이터 갱신 (스켈레톤 없이)
         loadingRef.current = false;
-        await loadUserData(session.user.id);
+        await loadUserData(session.user.id, undefined, hasLoadedOnce.current);
       } else if (event === "SIGNED_OUT") {
         authInitialized.current = false;
         setSavedRecipes([]);
@@ -193,9 +311,13 @@ export default function HomePage() {
       }
     });
 
-    // 게스트 체험 여부 확인
+    // 게스트 체험 여부 및 레시피 복원
     if (localStorage.getItem(GUEST_TRIED_KEY)) {
       setGuestTried(true);
+    }
+    const savedGuestRecipe = localStorage.getItem(GUEST_RECIPE_KEY);
+    if (savedGuestRecipe) {
+      try { setGuestRecipe(JSON.parse(savedGuestRecipe)); } catch { /* 무시 */ }
     }
 
     return () => subscription.unsubscribe();
@@ -245,6 +367,7 @@ export default function HomePage() {
           },
         };
         setGuestRecipe(guestData);
+        localStorage.setItem(GUEST_RECIPE_KEY, JSON.stringify(guestData));
         // 핫 레시피용 기록
         fetch("/api/hot/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(guestData) }).catch(() => {});
         setGuestTried(true);
@@ -256,6 +379,7 @@ export default function HomePage() {
       }
 
       setGuestRecipe(data);
+      localStorage.setItem(GUEST_RECIPE_KEY, JSON.stringify(data));
       // 핫 레시피용 기록
       fetch("/api/hot/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).catch(() => {});
       setGuestTried(true);
@@ -274,6 +398,20 @@ export default function HomePage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!url.trim() || !user) return;
+
+    // 중복 추출 방지
+    const videoId = extractVideoId(url.trim());
+    if (videoId) {
+      const existing = savedRecipes.find((r) => r.video_id === videoId);
+      if (existing) {
+        setSelectedRecipe(existing);
+        setView("detail");
+        setUrl("");
+        setError("이미 저장된 레시피예요! 기존 레시피를 보여드릴게요.");
+        setTimeout(() => setError(""), 4000);
+        return;
+      }
+    }
 
     setLoading(true);
     setLoadingMsg("AI가 레시피를 추출중이에요...");
@@ -333,7 +471,7 @@ export default function HomePage() {
         setLoadingMsg("");
         setError("이 영상은 설명란·고정댓글에 레시피 정보가 없어 추출이 어려웠어요. 설명란이나 고정댓글에 재료·레시피가 적힌 영상을 넣어보세요!");
         setView("home");
-        setTimeout(() => setError(""), 4000);
+        setTimeout(() => setError(""), 7000);
         return;
       }
 
@@ -403,11 +541,14 @@ export default function HomePage() {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
-  const loadAdminStats = useCallback(async () => {
+  const [statsPeriod, setStatsPeriod] = useState("today");
+
+  const loadAdminStats = useCallback(async (period?: string) => {
     if (!user?.email) return;
+    const p = period ?? statsPeriod;
     setAdminLoading(true);
     try {
-      const res = await fetch(`/api/admin/stats?email=${encodeURIComponent(user.email)}`);
+      const res = await fetch(`/api/admin/stats?email=${encodeURIComponent(user.email)}&period=${p}`);
       const data = await res.json();
       setAdminStats(data);
     } catch {
@@ -415,7 +556,7 @@ export default function HomePage() {
     } finally {
       setAdminLoading(false);
     }
-  }, [user?.email]);
+  }, [user?.email, statsPeriod]);
 
   const handleUnlock = async () => {
     if (!user?.email || !unlockEmail) return;
@@ -443,12 +584,36 @@ export default function HomePage() {
 
   const filteredRecipes = savedRecipes
     .filter((r) => tab === "favorites" ? r.is_favorite : true)
-    .filter((r) => selectedCategory === "전체" ? true : r.recipe.category === selectedCategory);
+    .filter((r) => selectedCategory === "전체" ? true : r.recipe.category === selectedCategory)
+    .filter((r) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.trim().toLowerCase();
+      return r.recipe.food_name.toLowerCase().includes(q)
+        || r.title.toLowerCase().includes(q)
+        || r.recipe.ingredients.some((ing) => ing.toLowerCase().includes(q));
+    });
 
-  if (authLoading) {
+  if ((authLoading || dataLoading) && !hasLoadedOnce.current && savedRecipes.length === 0) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full" />
+      <main className="min-h-screen bg-[#faf7f2]">
+        <header className="bg-white shadow-sm sticky top-0 z-10">
+          <div className="max-w-3xl mx-auto px-4 py-4">
+            <span className="text-xl font-bold text-orange-600">&#x1F468;&#x200D;&#x1F373; 레시피모아</span>
+          </div>
+        </header>
+        <div className="max-w-3xl mx-auto px-4 mt-8">
+          <div className="space-y-3">
+            {[1,2,3,4].map(i => (
+              <div key={i} className="bg-white rounded-xl shadow-sm p-4 flex gap-4 items-center animate-pulse">
+                <div className="w-24 h-16 bg-gray-200 rounded-lg shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-3/4" />
+                  <div className="h-3 bg-gray-100 rounded w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </main>
     );
   }
@@ -459,7 +624,7 @@ export default function HomePage() {
       <main className="min-h-screen pb-20">
         <header className="bg-white shadow-sm sticky top-0 z-10">
           <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-            <button onClick={() => { setView("home"); setSelectedRecipe(null); setGuestRecipe(null); setGuestTried(false); setError(""); setUrl(""); localStorage.removeItem(GUEST_TRIED_KEY); }} className="text-xl font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors flex items-center gap-1.5">&#x1F468;&#x200D;&#x1F373; 레시피모아<span className="inline-flex items-center gap-0.5 bg-[#10a37f] text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm"><svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>GPT</span></button>
+            <button onClick={() => { setView("home"); setSelectedRecipe(null); setGuestRecipe(null); setGuestTried(false); setError(""); setUrl(""); localStorage.removeItem(GUEST_TRIED_KEY); localStorage.removeItem(GUEST_RECIPE_KEY); }} className="text-xl font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors flex items-center gap-1.5">&#x1F468;&#x200D;&#x1F373; 레시피모아<span className="inline-flex items-center gap-0.5 bg-[#10a37f] text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm"><svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>GPT</span></button>
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => { setView("hot"); loadHotRecipes(); }}
@@ -490,6 +655,22 @@ export default function HomePage() {
                 <p className="text-center text-gray-400 py-12">아직 등록된 레시피가 없어요</p>
               ) : (
                 <>
+                  {/* 검색창 */}
+                  <div className="relative mb-3">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    <input
+                      type="text"
+                      value={hotSearchQuery}
+                      onChange={(e) => setHotSearchQuery(e.target.value)}
+                      placeholder="핫레시피 검색..."
+                      className="w-full pl-9 pr-8 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent"
+                    />
+                    {hotSearchQuery && (
+                      <button onClick={() => setHotSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    )}
+                  </div>
                   <div className="flex gap-2 overflow-x-auto pb-3 mb-4 scrollbar-hide">
                     {["전체", ...new Set(hotRecipes.map((r) => r.category))].map((cat) => (
                       <button
@@ -511,6 +692,13 @@ export default function HomePage() {
                   <div className="space-y-3">
                     {hotRecipes
                       .filter((r) => hotCategory === "전체" || r.category === hotCategory)
+                      .filter((hr) => {
+                        if (!hotSearchQuery.trim()) return true;
+                        const q = hotSearchQuery.trim().toLowerCase();
+                        return hr.food_name.toLowerCase().includes(q)
+                          || hr.title.toLowerCase().includes(q)
+                          || hr.ingredients.some((ing: string) => ing.toLowerCase().includes(q));
+                      })
                       .map((hr, idx) => (
                         <div key={hr.video_id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 flex gap-3 items-center">
                           <span className={`text-lg font-bold shrink-0 w-7 text-center ${idx < 3 ? "text-orange-500" : "text-gray-300"}`}>{idx + 1}</span>
@@ -531,7 +719,7 @@ export default function HomePage() {
                             }}
                             className="flex gap-3 items-center flex-1 min-w-0 text-left cursor-pointer"
                           >
-                            <Image src={hr.thumbnail} alt={hr.food_name} width={120} height={68} className="rounded-lg object-cover w-24 h-16 sm:w-28 sm:h-18 shrink-0" />
+                            <Thumbnail src={hr.thumbnail} alt={hr.food_name} width={120} height={68} className="rounded-lg object-cover w-24 h-16 sm:w-28 sm:h-18 shrink-0" />
                             <div className="min-w-0 flex-1">
                               <h3 className="font-semibold text-gray-900 truncate">{hr.food_name}</h3>
                               <p className="text-xs text-gray-400 truncate mt-0.5">{hr.title}</p>
@@ -689,7 +877,7 @@ export default function HomePage() {
                 }}
                 className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-3 flex gap-4 items-center overflow-hidden mb-4 w-full text-left cursor-pointer"
               >
-                <Image
+                <Thumbnail
                   src={guestRecipe.thumbnail}
                   alt={guestRecipe.recipe.food_name}
                   width={120}
@@ -736,6 +924,11 @@ export default function HomePage() {
   // ── 로그인 유저 화면 ──
   return (
     <main className="min-h-screen pb-20">
+      {toast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium animate-fade-in">
+          {toast}
+        </div>
+      )}
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <button
@@ -749,9 +942,9 @@ export default function HomePage() {
               <>
                 <button
                   onClick={() => { setView("hot"); loadHotRecipes(); }}
-                  className="text-gray-500 hover:text-orange-500 text-sm font-medium transition-colors cursor-pointer"
+                  className="animate-bounce-gentle relative bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:scale-105 cursor-pointer shadow-md shadow-yellow-200 flex items-center gap-0.5 whitespace-nowrap"
                 >
-                  핫 레시피
+                  &#x1F525;핫레시피
                 </button>
                 <button
                   onClick={() => { setView("extract"); if (profile) setLimitReached(todayCount >= profile.daily_limit); }}
@@ -783,15 +976,52 @@ export default function HomePage() {
               </div>
             ) : adminStats ? (
               <div className="space-y-6">
+                {/* 기간 선택 */}
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  {[
+                    { key: "today", label: "오늘" },
+                    { key: "yesterday", label: "어제" },
+                    { key: "week", label: "7일" },
+                    { key: "month", label: "30일" },
+                    { key: "all", label: "전체" },
+                  ].map(({ key, label }) => (
+                    <button
+                      key={key}
+                      onClick={() => { setStatsPeriod(key); loadAdminStats(key); }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                        statsPeriod === key
+                          ? "bg-orange-500 text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 기간별 통계 */}
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-orange-600">{adminStats.period_extractions}</p>
+                      <p className="text-xs text-gray-500 mt-1">추출</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-blue-600">{adminStats.period_users}</p>
+                      <p className="text-xs text-gray-500 mt-1">신규 가입</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-green-600">{adminStats.period_recipes}</p>
+                      <p className="text-xs text-gray-500 mt-1">저장 레시피</p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* 전체 통계 */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="bg-white rounded-xl shadow-sm p-4 text-center">
                     <p className="text-2xl font-bold text-orange-600">{adminStats.total_extractions}</p>
                     <p className="text-xs text-gray-500 mt-1">전체 추출</p>
-                  </div>
-                  <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-                    <p className="text-2xl font-bold text-blue-600">{adminStats.today_extractions}</p>
-                    <p className="text-xs text-gray-500 mt-1">오늘 추출</p>
                   </div>
                   <div className="bg-white rounded-xl shadow-sm p-4 text-center">
                     <p className="text-2xl font-bold text-green-600">{adminStats.total_users}</p>
@@ -799,7 +1029,7 @@ export default function HomePage() {
                   </div>
                   <div className="bg-white rounded-xl shadow-sm p-4 text-center">
                     <p className="text-2xl font-bold text-purple-600">{adminStats.total_recipes}</p>
-                    <p className="text-xs text-gray-500 mt-1">저장된 레시피</p>
+                    <p className="text-xs text-gray-500 mt-1">전체 레시피</p>
                   </div>
                 </div>
 
@@ -900,6 +1130,23 @@ export default function HomePage() {
               </div>
             ) : (
               <>
+                {/* 검색창 */}
+                <div className="relative mb-4">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  <input
+                    type="text"
+                    value={hotSearchQuery}
+                    onChange={(e) => setHotSearchQuery(e.target.value)}
+                    placeholder="핫레시피 검색..."
+                    className="w-full pl-9 pr-8 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent"
+                  />
+                  {hotSearchQuery && (
+                    <button onClick={() => setHotSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  )}
+                </div>
+
                 {/* 카테고리 필터 */}
                 <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
                   {["전체", ...new Set(hotRecipes.map((r) => r.category))].map((cat) => (
@@ -920,6 +1167,13 @@ export default function HomePage() {
                 <div className="grid gap-3">
                   {hotRecipes
                     .filter((hr) => hotCategory === "전체" || hr.category === hotCategory)
+                    .filter((hr) => {
+                      if (!hotSearchQuery.trim()) return true;
+                      const q = hotSearchQuery.trim().toLowerCase();
+                      return hr.food_name.toLowerCase().includes(q)
+                        || hr.title.toLowerCase().includes(q)
+                        || hr.ingredients.some((ing: string) => ing.toLowerCase().includes(q));
+                    })
                     .map((hr, idx) => (
                     <div
                       key={hr.video_id}
@@ -950,7 +1204,7 @@ export default function HomePage() {
                         }}
                         className="flex gap-3 items-center flex-1 min-w-0 text-left cursor-pointer"
                       >
-                        <Image
+                        <Thumbnail
                           src={hr.thumbnail}
                           alt={hr.food_name}
                           width={120}
@@ -998,6 +1252,8 @@ export default function HomePage() {
                               };
                               await saveRecipe(recipeData, user.id);
                               await loadRecipes();
+                              setToast(`"${hr.food_name}" 내 목록에 담았어요!`);
+                              setTimeout(() => setToast(""), 2500);
                             }}
                             className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer"
                           >
@@ -1039,7 +1295,7 @@ export default function HomePage() {
               recipe={selectedRecipe}
               onDelete={handleDelete}
               onFavoriteChange={loadRecipes}
-              onBack={goHome}
+              onBack={() => { setView(prevView.current === "hot" ? "hot" : "home"); setSelectedRecipe(null); }}
             />
           </div>
         ) : view === "extract" ? (
@@ -1171,11 +1427,6 @@ export default function HomePage() {
               </div>
             )}
           </>
-        ) : dataLoading ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full mb-3" />
-            <p className="text-sm text-gray-500">레시피를 불러오는 중...</p>
-          </div>
         ) : (
           <>
             {/* 에러 메시지 (추출 실패 후 리스트로 돌아왔을 때) */}
@@ -1206,6 +1457,31 @@ export default function HomePage() {
                 }`}
               >
                 &#9733; 즐겨찾기 ({savedRecipes.filter((r) => r.is_favorite).length})
+              </button>
+            </div>
+
+            {/* 검색창 */}
+            <div className="mb-4">
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="레시피 이름, 재료로 검색..."
+                  className="w-full pl-9 pr-8 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => { setView("hot"); loadHotRecipes(); }}
+                className="mt-2 text-xs text-orange-500 hover:text-orange-600 cursor-pointer"
+              >
+                찾는 레시피가 없다면? &#x1F525;핫레시피에서 검색해보세요 &rarr;
               </button>
             </div>
 
@@ -1261,7 +1537,7 @@ export default function HomePage() {
                       }}
                       className="flex gap-4 items-center text-left cursor-pointer flex-1 min-w-0"
                     >
-                      <Image
+                      <Thumbnail
                         src={r.thumbnail}
                         alt={r.recipe.food_name}
                         width={120}
