@@ -7,22 +7,15 @@ import { useState, useEffect } from "react";
 
 function Thumbnail({ src, alt, width, height, className }: { src: string; alt: string; width: number; height: number; className: string }) {
   const [imgSrc, setImgSrc] = useState(src);
-  const [failed, setFailed] = useState(false);
+  useEffect(() => { setImgSrc(src); }, [src]);
 
-  useEffect(() => { setImgSrc(src); setFailed(false); }, [src]);
-
-  if (failed) {
-    return (
-      <div className={`${className} bg-orange-100 flex items-center justify-center`} style={{ width, height }}>
-        <span className="text-orange-400 text-2xl font-bold">{alt?.charAt(0) || "?"}</span>
-      </div>
-    );
-  }
+  const videoId = src.match(/\/vi\/([^/]+)\//)?.[1];
 
   /* eslint-disable-next-line @next/next/no-img-element */
   return <img src={imgSrc} alt={alt} width={width} height={height} className={className} onError={() => {
-    if (imgSrc.includes("hqdefault")) setImgSrc(imgSrc.replace("hqdefault", "default"));
-    else setFailed(true);
+    if (!videoId) return;
+    if (imgSrc.includes("hqdefault")) setImgSrc(`https://img.youtube.com/vi/${videoId}/default.jpg`);
+    else if (imgSrc.includes("/default.jpg")) setImgSrc(`https://img.youtube.com/vi/${videoId}/0.jpg`);
   }} />;
 }
 

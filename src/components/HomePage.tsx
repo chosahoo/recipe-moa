@@ -19,23 +19,16 @@ import { User, AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 function Thumbnail({ src, alt, width, height, className }: { src: string; alt: string; width: number; height: number; className: string }) {
   const [imgSrc, setImgSrc] = useState(src);
-  const [failed, setFailed] = useState(false);
+  useEffect(() => { setImgSrc(src); }, [src]);
 
-  // src prop이 바뀌면 상태 리셋
-  useEffect(() => { setImgSrc(src); setFailed(false); }, [src]);
-
-  if (failed) {
-    return (
-      <div className={`${className} bg-orange-100 flex items-center justify-center`} style={{ width, height }}>
-        <span className="text-orange-400 text-lg font-bold">{alt?.charAt(0) || "?"}</span>
-      </div>
-    );
-  }
+  // video_id 추출해서 항상 유효한 썸네일 URL 보장
+  const videoId = src.match(/\/vi\/([^/]+)\//)?.[1];
 
   /* eslint-disable-next-line @next/next/no-img-element */
   return <img src={imgSrc} alt={alt} width={width} height={height} className={className} onError={() => {
-    if (imgSrc.includes("hqdefault")) setImgSrc(imgSrc.replace("hqdefault", "default"));
-    else setFailed(true);
+    if (!videoId) return;
+    if (imgSrc.includes("hqdefault")) setImgSrc(`https://img.youtube.com/vi/${videoId}/default.jpg`);
+    else if (imgSrc.includes("/default.jpg")) setImgSrc(`https://img.youtube.com/vi/${videoId}/0.jpg`);
   }} />;
 }
 
