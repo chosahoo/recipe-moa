@@ -21,31 +21,22 @@ function Thumbnail({ src, alt, width, height, className }: { src: string; alt: s
   const [imgSrc, setImgSrc] = useState(src);
   const [failed, setFailed] = useState(false);
 
+  // src prop이 바뀌면 상태 리셋
+  useEffect(() => { setImgSrc(src); setFailed(false); }, [src]);
+
   if (failed) {
     return (
-      <div className={`${className} bg-orange-100 flex items-center justify-center`}>
+      <div className={`${className} bg-orange-100 flex items-center justify-center`} style={{ width, height }}>
         <span className="text-orange-400 text-lg font-bold">{alt?.charAt(0) || "?"}</span>
       </div>
     );
   }
 
-  return (
-    <Image
-      src={imgSrc}
-      alt={alt}
-      width={width}
-      height={height}
-      className={className}
-      onError={() => {
-        // hqdefault 실패 시 default.jpg로 fallback
-        if (imgSrc.includes("hqdefault")) {
-          setImgSrc(imgSrc.replace("hqdefault", "default"));
-        } else {
-          setFailed(true);
-        }
-      }}
-    />
-  );
+  /* eslint-disable-next-line @next/next/no-img-element */
+  return <img src={imgSrc} alt={alt} width={width} height={height} className={className} onError={() => {
+    if (imgSrc.includes("hqdefault")) setImgSrc(imgSrc.replace("hqdefault", "default"));
+    else setFailed(true);
+  }} />;
 }
 
 type View = "home" | "extract" | "detail" | "hot" | "admin";

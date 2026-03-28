@@ -31,12 +31,16 @@ export async function GET() {
       }
     }
 
-    // 카운트 순 정렬, 상위 20개
+    // 카운트 순 정렬, 상위 100개
     const sorted = [...countMap.values()]
       .sort((a, b) => b.count - a.count)
-      .slice(0, 20);
+      .slice(0, 100);
 
-    const recipes = sorted.map((item) => ({
+    // 명확히 요리가 아닌 영상 제외
+    const notFood = /뉴스|정치|주식|코딩|운동|코어|미사일|액션|몰아보기|확전|창업|청정구역|오토쇼|전략.*농락|발사/i;
+    const filtered = sorted.filter((item) => !notFood.test(item.recipe.food_name) && !notFood.test(item.recipe.title));
+
+    const recipes = filtered.map((item) => ({
       video_id: item.recipe.video_id,
       title: item.recipe.title,
       thumbnail: item.recipe.thumbnail,
